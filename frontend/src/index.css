@@ -1,5 +1,30 @@
-/* Purpose: shared global CSS reset for the frontend app. */
+@import "tailwindcss";
 
-* {
-  box-sizing: border-box;
+@variant dark (&:where(.dark, .dark *));
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.5); }
+  70%       { box-shadow: 0 0 0 28px rgba(5, 150, 105, 0); }
 }
+@keyframes listen-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  70%       { box-shadow: 0 0 0 28px rgba(239, 68, 68, 0); }
+}
+@keyframes speak-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.5); }
+  70%       { box-shadow: 0 0 0 28px rgba(14, 165, 233, 0); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.35); }
+  50%       { transform: scaleY(1); }
+}
+
+.mic-idle      { animation: pulse-glow  2.2s ease-out infinite; }
+.mic-listening { animation: listen-glow 1.0s ease-out infinite; }
+.mic-speaking  { animation: speak-glow  1.6s ease-out infinite; }
+.spinner       { animation: spin 0.75s linear infinite; }
+.wave-bar      { animation: wave 0.65s ease-in-out infinite; }
+.wave-bar:nth-child(2) { animation-delay: 0.10s; }
+.wave-bar:nth-child(3) { animation-delay: 0.20s; }
+.wave-bar:nth-child(4) { animation-delay: 0.10s; }

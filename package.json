@@ -1,0 +1,11 @@
+{
+  "name": "voicemed-ai",
+  "private": true,
+  "description": "VoiceMedAI — run scripts from project root",
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "preview": "npm run preview --prefix frontend",
+    "install:frontend": "npm install --prefix frontend"
+  }
+}

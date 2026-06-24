@@ -1,0 +1,36 @@
+{
+  "critical": [
+    "chest pain",
+    "difficulty breathing",
+    "shortness of breath",
+    "cannot breathe",
+    "severe chest",
+    "obstetric",
+    "pregnancy bleeding",
+    "vaginal bleeding in pregnancy",
+    "convulsion",
+    "seizure",
+    "unconscious",
+    "severe bleeding",
+    "blood loss",
+    "stroke",
+    "paralysis",
+    "severe dehydration",
+    "severe infection",
+    "high fever with confusion",
+    "suicide",
+    "self harm"
+  ],
+  "urgent": [
+    "high fever",
+    "persistent vomiting",
+    "blood in stool",
+    "blood in urine",
+    "severe abdominal pain",
+    "poor infant feeding",
+    "infant not feeding",
+    "severe headache",
+    "stiff neck",
+    "jaundice"
+  ]
+}

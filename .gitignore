@@ -4,7 +4,21 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv312/
 .env
+backend/cache/
+models/
+
+# Large model files
+llm/
+*.gguf
+
+# Database & data files with PII potential
+data/voicemed.db
+tmp/
+
+# Misc
+train.csv
 
 # Node/React
 frontend/node_modules/

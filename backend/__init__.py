@@ -1,0 +1,1 @@
+"""VoiceMedAI FastAPI backend package."""

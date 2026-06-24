@@ -1,0 +1,182 @@
+[
+  {
+    "id": "malaria-01",
+    "condition": "suspected malaria",
+    "keywords": ["malaria", "fever", "chills", "body hot", "shiver", "headache"],
+    "guidance": "Oga, malaria fit cause fever, cold, and body weakness. Make you rest well for cool place and drink water steady. If fever pass three days or belle pain join, make you waka go PHC same day for test and treatment. No dey take medicine wey person give you without nurse check am."
+  },
+  {
+    "id": "typhoid-01",
+    "condition": "suspected typhoid fever",
+    "keywords": ["typhoid", "fever", "headache", "abdominal pain", "weakness"],
+    "guidance": "Madam, typhoid dey show as fever, headache, and belle pain. Drink clean water and eat food wey cook well. If fever dey continue pass two days or you dey vomit, make you go PHC for blood test. Hand washing dey important."
+  },
+  {
+    "id": "diarrhea-01",
+    "condition": "diarrhea",
+    "keywords": ["diarrhea", "purge", "stool", "dehydration", "vomiting"],
+    "guidance": "Oga, for diarrhea make you drink oral rehydration solution small-small. Continue breast milk if na pikin. If stool get blood, fever high, or pikin dey weak, go PHC quick-quick. Wash hand after toilet."
+  },
+  {
+    "id": "respiratory-01",
+    "condition": "cough",
+    "keywords": ["cough", "cold", "throat", "catarrh"],
+    "guidance": "Madam, mild cough fit clear with rest and warm drink. If cough pass two weeks, you dey cough blood, or breath dey short, make you visit PHC. Avoid smoke and dusty area."
+  },
+  {
+    "id": "hypertension-01",
+    "condition": "hypertension concern",
+    "keywords": ["bp", "blood pressure", "hypertension", "headache", "dizzy"],
+    "guidance": "Oga, high blood pressure need regular check for PHC. Reduce salt, rest well, and take medicine if nurse prescribe am. If severe headache, chest pain, or vision blur join, seek care immediately."
+  },
+  {
+    "id": "diabetes-01",
+    "condition": "hyperglycemia concern",
+    "keywords": ["sugar", "diabetes", "thirst", "urine", "weakness"],
+    "guidance": "Madam, if you suspect high blood sugar, avoid too much sweet drink and go PHC for testing. If you dey confused, vomit plenty, or breath smell sweet, seek urgent care."
+  },
+  {
+    "id": "abdominal-01",
+    "condition": "abdominal pain",
+    "keywords": ["abdominal", "belle pain", "stomach pain", "nausea"],
+    "guidance": "Oga, mild belle pain fit be from food or gas. Drink water and avoid heavy food today. If pain strong, belle hard like stone, or you vomit blood, go PHC today."
+  },
+  {
+    "id": "headache-01",
+    "condition": "headache",
+    "keywords": ["headache", "head pain", "migraine"],
+    "guidance": "Madam, rest for quiet place and drink water. Paracetamol fit help if nurse don talk say e safe for you. If headache sudden and very strong, neck stiff, or fever join, go PHC quick."
+  },
+  {
+    "id": "fever-01",
+    "condition": "fever",
+    "keywords": ["fever", "temperature", "hot body", "chills"],
+    "guidance": "Oga, for fever make you rest, drink fluids, and use cool cloth on forehead. If fever pass three days, rash show, or pikin under five months get fever, visit PHC same day."
+  },
+  {
+    "id": "skin-01",
+    "condition": "skin rash",
+    "keywords": ["rash", "itch", "skin", "scabies"],
+    "guidance": "Madam, keep skin clean and dry. If rash spread quick, get pus, or fever join, go PHC. Avoid sharing cream or cloth with others if itch dey contagious."
+  },
+  {
+    "id": "uti-01",
+    "condition": "dysuria",
+    "keywords": ["urine pain", "urinary", "burning urine", "frequent urine"],
+    "guidance": "Oga, urine pain fit mean infection. Drink water well and go PHC for urine test. If back pain, fever, or blood for urine join, seek care today."
+  },
+  {
+    "id": "wound-01",
+    "condition": "infected wound",
+    "keywords": ["wound", "injury", "swelling", "pus", "smell"],
+    "guidance": "Madam, clean wound with clean water and cover am. If wound dey swell, smell bad, or red line dey spread, go PHC for antibiotics check."
+  },
+  {
+    "id": "pregnancy-01",
+    "condition": "pregnancy concern",
+    "keywords": ["pregnant", "pregnancy", "antenatal", "belle for woman"],
+    "guidance": "Madam, every pregnant woman need regular antenatal visit for PHC. Eat balanced food and take iron if nurse give am. Any bleeding, severe headache, or swelling for leg and face need urgent facility visit."
+  },
+  {
+    "id": "infant-01",
+    "condition": "poor infant feeding",
+    "keywords": ["infant", "baby", "breastfeeding", "not feeding", "cry"],
+    "guidance": "Oga, if pikin no dey suck well or dey too weak to cry, go PHC today. Keep pikin warm and continue try breast milk small-small while you dey go facility."
+  },
+  {
+    "id": "med-paracetamol",
+    "condition": "paracetamol dosage inquiry",
+    "keywords": ["paracetamol", "panadol", "acetaminophen", "dosage", "medicine"],
+    "guidance": "Madam, adult fit usually take 500mg to 1g paracetamol every six hours, but make nurse confirm for your condition. Pikin dose dey depend on weight — no guess. Too much fit harm liver."
+  },
+  {
+    "id": "med-ibuprofen",
+    "condition": "ibuprofen dosage inquiry",
+    "keywords": ["ibuprofen", "ibu", "brufen", "dosage"],
+    "guidance": "Oga, ibuprofen dose must follow PHC nurse advice, especially if you get ulcer, pregnancy, or kidney wahala. No combine plenty pain medicine without professional check."
+  },
+  {
+    "id": "med-general",
+    "condition": "medication inquiry",
+    "keywords": ["medicine", "drug", "tablet", "how to take", "dosage"],
+    "guidance": "Madam, only take medicine wey PHC prescribe for you. Read label with CHEW help if needed. No share medicine with neighbor. If side effect show, stop and return to PHC."
+  },
+  {
+    "id": "dehydration-01",
+    "condition": "dehydration",
+    "keywords": ["dehydration", "thirst", "dry mouth", "little urine"],
+    "guidance": "Oga, drink ORS or clean water often. If you no fit drink, dey confused, or urine stop, go PHC urgent. This one serious for pikin and elderly."
+  },
+  {
+    "id": "general-01",
+    "condition": "general health inquiry",
+    "keywords": ["health", "feel sick", "unwell", "worried"],
+    "guidance": "Oga, thank you for asking. Describe wetin dey worry you well-well to the CHEW for PHC. Rest, drink water, and if symptoms dey worse instead of better, make you visit facility same day."
+  },
+  {
+    "id": "chest-01",
+    "condition": "chest pain",
+    "keywords": ["chest pain", "chest tight", "heart pain", "chest pepper"],
+    "guidance": "Oga, chest pain fit be serious. Make you no wait for house remedy — go PHC or hospital NOW. If pain spread go arm or jaw, or breath dey short, call for urgent help."
+  },
+  {
+    "id": "breath-01",
+    "condition": "difficulty breathing",
+    "keywords": ["difficulty breathing", "shortness of breath", "cannot breathe", "breath"],
+    "guidance": "Madam, if breath no dey come well, sit upright and go facility urgent. This fit need oxygen or nebulizer wey PHC or hospital go provide."
+  },
+  {
+    "id": "obstetric-01",
+    "condition": "obstetric abdominal pain",
+    "keywords": ["pregnant", "pregnancy pain", "belle pain pregnant", "antenatal"],
+    "guidance": "Madam, any pain or bleeding during pregnancy need urgent antenatal check. Go PHC or maternity unit today; no take herbal mixture without nurse approval."
+  },
+  {
+    "id": "preg-bleed",
+    "condition": "vaginal bleeding in pregnancy",
+    "keywords": ["bleeding pregnant", "blood pregnancy", "spotting pregnant"],
+    "guidance": "Madam, bleeding when you get belle dey urgent. Lie down, go facility immediately, and no insert anything for vagina."
+  },
+  {
+    "id": "measles-01",
+    "condition": "measles suspicion",
+    "keywords": ["measles", "rash fever", "koplik", "red eyes rash"],
+    "guidance": "Oga, fever with rash fit be measles especially for pikin. Isolate from other children, give fluids, and go PHC for vaccination check and treatment."
+  },
+  {
+    "id": "tb-01",
+    "condition": "chronic cough TB suspicion",
+    "keywords": ["cough two weeks", "tb", "tuberculosis", "night sweat", "weight loss cough"],
+    "guidance": "Madam, cough wey pass two weeks with weight loss or night sweat need sputum test for PHC. Cover mouth when you cough; family members need screening."
+  },
+  {
+    "id": "snake-01",
+    "condition": "snake bite",
+    "keywords": ["snake bite", "snake", "bite leg", "poison bite"],
+    "guidance": "Oga, keep calm, no cut or suck wound, remove tight cloth and jewelry, immobilize limb, and go PHC or hospital urgent with description of snake if possible."
+  },
+  {
+    "id": "burn-01",
+    "condition": "burn injury",
+    "keywords": ["burn", "hot water", "fire injury", "scald"],
+    "guidance": "Madam, cool burn with clean cool water 20 minutes. No rub oil or toothpaste. Cover with clean cloth and go PHC if burn large or for face and hands."
+  },
+  {
+    "id": "convulsion-01",
+    "condition": "convulsion",
+    "keywords": ["convulsion", "seizure", "fits", "shaking unconscious"],
+    "guidance": "Oga, if person dey convulse, turn am sideways, clear danger around, time the fit, and go PHC urgent after fit stop especially for pikin or pregnant woman."
+  },
+  {
+    "id": "anemia-01",
+    "condition": "anemia suspicion",
+    "keywords": ["anemia", "pale", "weak", "iron", "dizziness"],
+    "guidance": "Madam, pale skin and weakness fit mean low blood. Eat green vegetables and beans, take iron if nurse give am, and do blood test for PHC."
+  },
+  {
+    "id": "oral-rehydration",
+    "condition": "ORS preparation",
+    "keywords": ["ors", "oral rehydration", "salt sugar water", "dehydration home"],
+    "guidance": "Oga, for ORS mix clean water with salt and sugar as CHEW teach you, or use ORS packet from PHC. Give small cup often to pikin and adult wey dey purge."
+  }
+]
