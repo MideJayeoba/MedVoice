@@ -27,6 +27,10 @@ class ConsultHistoryItem(BaseModel):
     escalate: bool
     created_at: str
     conversation_id: str | None = None
+    triage_category: str | None = None
+    triage_department: str | None = None
+    triage_priority: str | None = None
+    triage_confidence: float | None = None
 
 
 class ConversationSummary(BaseModel):
@@ -35,6 +39,9 @@ class ConversationSummary(BaseModel):
     last_at: str
     turn_count: int
     first_transcript: str
+    priority: str | None = None      # session-level urgency (highest reached)
+    department: str | None = None    # most recent suggested department
+    category: str | None = None      # most recent condition area
 
 
 class UserOut(BaseModel):

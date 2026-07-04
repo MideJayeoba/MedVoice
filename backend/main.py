@@ -43,6 +43,7 @@ app.add_middleware(
         "X-VoiceMed-Escalate",
         "X-VoiceMed-Guidance",
         "X-VoiceMed-ConversationId",
+        "X-VoiceMed-Triage",
     ],
 )
 

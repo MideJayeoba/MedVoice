@@ -8,10 +8,19 @@ from fastapi.responses import Response
 
 from backend.database.db import db_get_conversation, db_save_consultation
 from backend.dependencies.auth import get_optional_user
-from backend.schemas.consult import ReasonRequest, ReasonResponse, SpeakRequest, TranscribeResponse
+from backend.schemas.consult import (
+    ChatRequest,
+    ChatResponse,
+    ReasonRequest,
+    ReasonResponse,
+    SpeakRequest,
+    TranscribeResponse,
+    TriagePredictRequest,
+    TriagePredictResponse,
+)
 from backend.services.asr import transcribe_audio
 from backend.services.llm import generate_guidance
-from backend.services.pipeline import run_voice_consult
+from backend.services.pipeline import run_consult_text, run_voice_consult, triage_for_conversation
 from backend.services.tts import synthesize_speech
 
 logger = logging.getLogger(__name__)
@@ -93,6 +102,67 @@ def speak(
 
 
 @router.post(
+    "/chat",
+    response_model=ChatResponse,
+    summary="Text consultation: triage → LLM (no audio, fast)",
+)
+def chat(
+    body: ChatRequest,
+    current_user: Optional[dict] = Depends(get_optional_user),
+) -> ChatResponse:
+    try:
+        history = db_get_conversation(body.conversation_id) if body.conversation_id else []
+        reply, triage = run_consult_text(body.message, history=history)
+        escalate = bool(triage and triage.get("priority") == "Emergency")
+
+        if current_user:
+            db_save_consultation(
+                current_user["id"],
+                body.message,
+                reply,
+                escalate,
+                conversation_id=body.conversation_id,
+                triage=triage,
+            )
+
+        return ChatResponse(
+            reply=reply,
+            triage=triage,
+            escalate=escalate,
+            conversation_id=body.conversation_id,
+        )
+    except Exception as exc:
+        logger.exception("Chat failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Chat failed — please try again") from exc
+
+
+@router.post(
+    "/triage",
+    response_model=TriagePredictResponse,
+    summary="Force a triage prediction for the whole conversation (manual button)",
+)
+def predict_now(
+    body: TriagePredictRequest,
+    current_user: Optional[dict] = Depends(get_optional_user),
+) -> TriagePredictResponse:
+    history = db_get_conversation(body.conversation_id) if body.conversation_id else []
+    query = (body.message or "").strip()
+    if not history and not query:
+        return TriagePredictResponse(triage=None, detail="Describe how you feel first, then try again.")
+    try:
+        triage = triage_for_conversation(query, history, force=True)
+    except Exception as exc:
+        logger.exception("Manual triage failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Prediction failed") from exc
+    if not triage:
+        return TriagePredictResponse(
+            triage=None,
+            detail="No clear symptoms detected yet — keep describing what you feel.",
+        )
+    return TriagePredictResponse(triage=triage)
+
+
+@router.post(
     "/consult",
     summary="Full voice pipeline: ASR → RAG → LLM → TTS",
     response_class=Response,
@@ -119,9 +189,12 @@ async def consult(
                 meta.get("guidance", ""),
                 meta.get("escalate", False),
                 conversation_id=conversation_id,
+                triage=meta.get("triage"),
             )
 
+        import json
         import urllib.parse
+        triage_json = json.dumps(meta["triage"]) if meta.get("triage") else ""
         return Response(
             content=audio_bytes,
             media_type="audio/mpeg",
@@ -130,6 +203,7 @@ async def consult(
                 "X-VoiceMed-Escalate": str(meta.get("escalate", False)).lower(),
                 "X-VoiceMed-Guidance": urllib.parse.quote(meta.get("guidance", "")),
                 "X-VoiceMed-ConversationId": conversation_id or "",
+                "X-VoiceMed-Triage": urllib.parse.quote(triage_json),
                 "Content-Length": str(len(audio_bytes)),
                 "Cache-Control": "no-store",
             },

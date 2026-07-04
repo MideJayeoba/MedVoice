@@ -120,17 +120,7 @@ def logout_token(body: dict) -> dict:
 )
 def me(current_user: dict = Depends(get_current_user)) -> UserOut:
     raw_history = db_get_consultations(current_user["id"])
-    history = [
-        ConsultHistoryItem(
-            id=row["id"],
-            transcript=row["transcript"],
-            guidance=row["guidance"],
-            escalate=bool(row["escalate"]),
-            created_at=row["created_at"],
-            conversation_id=row.get("conversation_id"),
-        )
-        for row in raw_history
-    ]
+    history = [_history_item(row) for row in raw_history]
     raw_convos = db_get_conversations(current_user["id"])
     conversations = [
         ConversationSummary(
@@ -139,6 +129,9 @@ def me(current_user: dict = Depends(get_current_user)) -> UserOut:
             last_at=row["last_at"],
             turn_count=row["turn_count"],
             first_transcript=row["first_transcript"] or "",
+            priority=row.get("priority"),
+            department=row.get("department"),
+            category=row.get("category"),
         )
         for row in raw_convos
     ]
@@ -185,14 +178,19 @@ def get_conversation(
     for row in rows:
         if row["user_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="Not your conversation")
-    return [
-        ConsultHistoryItem(
-            id=row["id"],
-            transcript=row["transcript"],
-            guidance=row["guidance"],
-            escalate=bool(row["escalate"]),
-            created_at=row["created_at"],
-            conversation_id=row.get("conversation_id"),
-        )
-        for row in rows
-    ]
+    return [_history_item(row) for row in rows]
+
+
+def _history_item(row: dict) -> ConsultHistoryItem:
+    return ConsultHistoryItem(
+        id=row["id"],
+        transcript=row["transcript"],
+        guidance=row["guidance"],
+        escalate=bool(row["escalate"]),
+        created_at=row["created_at"],
+        conversation_id=row.get("conversation_id"),
+        triage_category=row.get("triage_category"),
+        triage_department=row.get("triage_department"),
+        triage_priority=row.get("triage_priority"),
+        triage_confidence=row.get("triage_confidence"),
+    )

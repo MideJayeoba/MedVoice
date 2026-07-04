@@ -72,6 +72,10 @@ def init_db() -> None:
         for stmt in [
             "ALTER TABLE users ADD COLUMN tts_voice TEXT NOT NULL DEFAULT 'Ezinne'",
             "ALTER TABLE consultations ADD COLUMN conversation_id TEXT",
+            "ALTER TABLE consultations ADD COLUMN triage_category TEXT",
+            "ALTER TABLE consultations ADD COLUMN triage_department TEXT",
+            "ALTER TABLE consultations ADD COLUMN triage_priority TEXT",
+            "ALTER TABLE consultations ADD COLUMN triage_confidence REAL",
         ]:
             try:
                 conn.execute(stmt)
@@ -170,12 +174,18 @@ def db_purge_expired_sessions() -> int:
 def db_save_consultation(
     user_id: int, transcript: str, guidance: str, escalate: bool,
     conversation_id: str | None = None,
+    triage: dict | None = None,
 ) -> int:
+    t = triage or {}
     with _get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO consultations (user_id, transcript, guidance, escalate, conversation_id)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (user_id, transcript, guidance, int(escalate), conversation_id),
+            "INSERT INTO consultations (user_id, transcript, guidance, escalate, conversation_id,"
+            " triage_category, triage_department, triage_priority, triage_confidence)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                user_id, transcript, guidance, int(escalate), conversation_id,
+                t.get("category"), t.get("department"), t.get("priority"), t.get("confidence"),
+            ),
         )
         return cur.lastrowid
 
@@ -199,21 +209,49 @@ def db_get_conversation(conversation_id: str) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+_PRIORITY_RANK = {"Emergency": 4, "High": 3, "Moderate": 2, "Low": 1}
+_RANK_PRIORITY = {v: k for k, v in _PRIORITY_RANK.items()}
+
+
 def db_get_conversations(user_id: int) -> list[dict]:
-    """Return one summary row per distinct conversation, newest first."""
+    """Return one summary row per distinct conversation, newest first.
+
+    Each summary carries a *session-level* triage: the highest urgency
+    reached in the conversation and the department/category from the most
+    recent turn that produced one — so history cards show one verdict per
+    session, not one per message.
+    """
     with _get_conn() as conn:
         rows = conn.execute(
             """
-            SELECT conversation_id,
-                   MIN(created_at) AS started_at,
-                   MAX(created_at) AS last_at,
-                   COUNT(*)        AS turn_count,
-                   MIN(transcript) AS first_transcript
-              FROM consultations
-             WHERE user_id = ? AND conversation_id IS NOT NULL
-             GROUP BY conversation_id
+            SELECT c.conversation_id,
+                   MIN(c.created_at) AS started_at,
+                   MAX(c.created_at) AS last_at,
+                   COUNT(*)          AS turn_count,
+                   (SELECT transcript FROM consultations c0
+                     WHERE c0.conversation_id = c.conversation_id
+                     ORDER BY c0.created_at ASC LIMIT 1) AS first_transcript,
+                   MAX(CASE c.triage_priority
+                         WHEN 'Emergency' THEN 4 WHEN 'High' THEN 3
+                         WHEN 'Moderate' THEN 2 WHEN 'Low' THEN 1 ELSE 0 END) AS priority_rank,
+                   (SELECT triage_department FROM consultations c1
+                     WHERE c1.conversation_id = c.conversation_id
+                       AND c1.triage_department IS NOT NULL
+                     ORDER BY c1.created_at DESC LIMIT 1) AS department,
+                   (SELECT triage_category FROM consultations c2
+                     WHERE c2.conversation_id = c.conversation_id
+                       AND c2.triage_category IS NOT NULL
+                     ORDER BY c2.created_at DESC LIMIT 1) AS category
+              FROM consultations c
+             WHERE c.user_id = ? AND c.conversation_id IS NOT NULL
+             GROUP BY c.conversation_id
              ORDER BY last_at DESC
             """,
             (user_id,),
         ).fetchall()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["priority"] = _RANK_PRIORITY.get(d.pop("priority_rank", 0) or 0)
+            result.append(d)
+        return result

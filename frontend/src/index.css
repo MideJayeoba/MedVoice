@@ -2,6 +2,11 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+@theme {
+  /* Mint canvas from the Stitch design system */
+  --color-mint: #eef6f0;
+}
+
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.5); }
   70%       { box-shadow: 0 0 0 28px rgba(5, 150, 105, 0); }

@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     host: true,
+    port: process.env.PORT ? Number(process.env.PORT) : 5173,
     proxy: {
       '/transcribe': { target: 'http://127.0.0.1:8000', timeout: 600000 },
       '/reason': { target: 'http://127.0.0.1:8000', timeout: 600000 },

@@ -7,7 +7,6 @@ __pycache__/
 .venv312/
 .env
 backend/cache/
-models/
 
 # Large model files
 llm/

@@ -162,10 +162,42 @@ export async function consultAudio(blob, conversationId = null) {
   const escalate = res.headers.get('X-VoiceMed-Escalate') === 'true'
   const returnedConversationId = res.headers.get('X-VoiceMed-ConversationId') || conversationId
 
+  let triage = null
+  const rawTriage = res.headers.get('X-VoiceMed-Triage') || ''
+  if (rawTriage) {
+    try { triage = JSON.parse(decodeURIComponent(rawTriage)) } catch { /* ignore malformed */ }
+  }
+
   const audioBlob = await res.blob()
   if (audioBlob.size < 100) throw new Error(`empty_audio:${audioBlob.size}`)
 
-  return { blob: audioBlob, transcript, guidance, escalate, conversationId: returnedConversationId }
+  return { blob: audioBlob, transcript, guidance, escalate, triage, conversationId: returnedConversationId }
+}
+
+/** Text chat — fast path, no audio. Returns { reply, triage, escalate, conversation_id } */
+export async function consultText(message, conversationId = null) {
+  const res = await apiFetch('/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, conversation_id: conversationId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Chat failed' }))
+    throw new Error(_extractDetail(err, 'Chat failed'))
+  }
+  return res.json()
+}
+
+/** Force a triage prediction for the whole conversation (manual button).
+ *  Returns { triage, detail } — triage is null when nothing could be predicted. */
+export async function predictTriageNow(conversationId = null, message = null) {
+  const res = await apiFetch('/triage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ conversation_id: conversationId, message }),
+  })
+  if (!res.ok) throw new Error(`triage_failed:${res.status}`)
+  return res.json()
 }
 
 export async function getConversationTurns(conversationId) {
