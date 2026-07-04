@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: voicemed-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    disk:
+      name: voicemed-db-vol
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: VOICEMED_DB_PATH
+        value: /data/voicemed.db
+      - key: VOICEMED_ASR_MODE
+        value: whisper
+      - key: GROQ_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false

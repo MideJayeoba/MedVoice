@@ -31,7 +31,8 @@ def preload_models() -> None:
     """Background preload of ASR + triage models."""
     def _asr():
         try:
-            if get_asr_status()["mode"] == "whisper":
+            status = get_asr_status()
+            if status["mode"] == "whisper" and not status.get("groq_available"):
                 from backend.services.asr import _load_whisper
                 _load_whisper()
         except Exception as exc:

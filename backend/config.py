@@ -11,7 +11,7 @@ load_dotenv(ROOT_DIR / ".env")
 DATA_DIR = ROOT_DIR / "data"
 MODELS_DIR = ROOT_DIR / "models"
 INDEX_DIR = DATA_DIR / "index"
-DB_PATH = DATA_DIR / "voicemed.db"
+DB_PATH = Path(os.getenv("VOICEMED_DB_PATH", str(DATA_DIR / "voicemed.db")))
 SESSION_TTL_HOURS = int(os.getenv("SESSION_TTL_HOURS", "24"))
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
@@ -26,7 +26,7 @@ ESCALATION_PATH = DATA_DIR / "escalation_keywords.json"
 FAISS_INDEX_PATH = INDEX_DIR / "phc.faiss"
 FAISS_META_PATH = INDEX_DIR / "phc_meta.json"
 
-AUDIO_CACHE_DIR = ROOT_DIR / "backend" / "cache" / "audio"
+AUDIO_CACHE_DIR = Path(os.getenv("AUDIO_CACHE_DIR", str(ROOT_DIR / "backend" / "cache" / "audio")))
 
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))

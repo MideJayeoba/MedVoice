@@ -62,6 +62,11 @@ def _resolve_mode() -> str:
         _mode_resolved = requested
         return _mode_resolved
 
+    # If Groq is configured, we can run cloud whisper without local package
+    if os.getenv("GROQ_API_KEY"):
+        _mode_resolved = "whisper"
+        return _mode_resolved
+
     try:
         import whisper  # noqa: F401
 
