@@ -74,7 +74,7 @@ def reason(
 
 @router.post(
     "/speak",
-    summary="Convert text to speech (WAV)",
+    summary="Convert text to speech (MP3)",
     response_class=Response,
 )
 def speak(
@@ -83,10 +83,10 @@ def speak(
 ) -> Response:
     try:
         voice = current_user.get("tts_voice", "Ezinne") if current_user else "Ezinne"
-        wav_bytes = synthesize_speech(body.text, voice=voice)
-        if len(wav_bytes) < 500:
+        audio_bytes = synthesize_speech(body.text, voice=voice)
+        if len(audio_bytes) < 100:
             raise RuntimeError("TTS output too small")
-        return Response(content=wav_bytes, media_type="audio/wav")
+        return Response(content=audio_bytes, media_type="audio/mpeg")
     except Exception as exc:
         logger.exception("TTS failed: %s", exc)
         raise HTTPException(status_code=500, detail="Speech synthesis failed") from exc
@@ -110,7 +110,7 @@ async def consult(
         voice = current_user.get("tts_voice", "Ezinne") if current_user else "Ezinne"
         # Use only the current conversation's history so the LLM has coherent context
         history = db_get_conversation(conversation_id) if conversation_id else []
-        wav_bytes, meta = run_voice_consult(audio_bytes, audio.content_type, voice=voice, history=history)
+        audio_bytes, meta = run_voice_consult(audio_bytes, audio.content_type, voice=voice, history=history)
 
         if current_user:
             db_save_consultation(
@@ -123,14 +123,14 @@ async def consult(
 
         import urllib.parse
         return Response(
-            content=wav_bytes,
-            media_type="audio/wav",
+            content=audio_bytes,
+            media_type="audio/mpeg",
             headers={
                 "X-VoiceMed-Transcript": urllib.parse.quote(meta.get("transcript", "")[:200]),
                 "X-VoiceMed-Escalate": str(meta.get("escalate", False)).lower(),
                 "X-VoiceMed-Guidance": urllib.parse.quote(meta.get("guidance", "")),
                 "X-VoiceMed-ConversationId": conversation_id or "",
-                "Content-Length": str(len(wav_bytes)),
+                "Content-Length": str(len(audio_bytes)),
                 "Cache-Control": "no-store",
             },
         )
@@ -143,7 +143,7 @@ async def consult(
                 "We no fit hear you well. Please hold the microphone and talk again.",
                 voice=voice,
             ),
-            media_type="audio/wav",
+            media_type="audio/mpeg",
         )
     except RuntimeError as exc:
         logger.warning("Consult speech error: %s", exc)
@@ -154,9 +154,9 @@ async def consult(
             else "Speech recognition no work this time. Please try again, or ask the CHEW for help."
         )
         voice = current_user.get("tts_voice", "Ezinne") if current_user else "Ezinne"
-        return Response(content=synthesize_speech(msg_text, voice=voice), media_type="audio/wav")
+        return Response(content=synthesize_speech(msg_text, voice=voice), media_type="audio/mpeg")
     except Exception as exc:
         logger.exception("Consult pipeline failed: %s", exc)
         voice = current_user.get("tts_voice", "Ezinne") if current_user else "Ezinne"
-        return Response(content=synthesize_speech(_ERROR_VOICE, voice=voice), media_type="audio/wav")
+        return Response(content=synthesize_speech(_ERROR_VOICE, voice=voice), media_type="audio/mpeg")
 

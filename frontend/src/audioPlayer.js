@@ -38,13 +38,14 @@ export function unlockAudioOutput() {
 }
 
 export async function playWavBlob(blob) {
-  if (!blob || blob.size < 500) throw new Error('empty_audio')
+  if (!blob || blob.size < 100) throw new Error('empty_audio')
 
   _stopped = false  // reset for this new playback
 
-  const typed = blob.type?.includes('wav')
+  // Ensure the blob has an audio MIME type for the HTML Audio element
+  const typed = blob.type?.startsWith('audio/')
     ? blob
-    : new Blob([blob], { type: 'audio/wav' })
+    : new Blob([blob], { type: 'audio/mpeg' })
 
   // Strategy 1: HTML Audio element
   let needsFallback = false

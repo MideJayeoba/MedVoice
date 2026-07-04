@@ -1,6 +1,5 @@
-"""Text-to-speech — Microsoft Edge TTS (en-NG) only (FR-05)."""
+"""Text-to-speech — Microsoft Edge TTS (en-NG) — returns MP3 directly (FR-05)."""
 
-import io
 import logging
 from backend.config import AUDIO_CACHE_DIR
 
@@ -45,58 +44,25 @@ async def _async_synth_edge_tts(text: str, voice_name: str) -> bytes:
     return b"".join(mp3_chunks)
 
 
-def _synthesize_edge_tts(text: str, voice_pref: str) -> bytes:
-    """Synthesize speech using Microsoft Edge TTS (en-NG) and convert to WAV in-memory."""
-    import av
+def synthesize_speech(text: str, voice: str = "Ezinne") -> bytes:
+    """Synthesize spoken guidance using Edge TTS. Returns raw MP3 bytes."""
+    text = text.strip()
+    if not text:
+        text = "Please try again."
 
     # Map selection to Edge TTS neural voice name
     voice_name = "en-NG-EzinneNeural"
-    if voice_pref == "Abeo":
+    if voice == "Abeo":
         voice_name = "en-NG-AbeoNeural"
 
     mp3_bytes = run_async(_async_synth_edge_tts(text, voice_name))
     if not mp3_bytes:
         raise RuntimeError("Edge TTS produced empty MP3 output")
 
-    # Convert MP3 to WAV using PyAV
-    input_file = io.BytesIO(mp3_bytes)
-    output_file = io.BytesIO()
-
-    with av.open(input_file, mode='r') as in_container:
-        in_stream = in_container.streams.audio[0]
-        with av.open(output_file, mode='w', format='wav') as out_container:
-            # PCM 16-bit Mono WAV (standard for VoiceMedAI backend)
-            out_stream = out_container.add_stream(
-                'pcm_s16le',
-                rate=24000,
-                layout='mono'
-            )
-            resampler = av.AudioResampler(
-                format='s16',
-                layout='mono',
-                rate=24000
-            )
-            for frame in in_container.decode(in_stream):
-                resampled_frames = resampler.resample(frame)
-                for r_frame in resampled_frames:
-                    for packet in out_stream.encode(r_frame):
-                        out_container.mux(packet)
-            
-            # Flush encoder
-            for packet in out_stream.encode(None):
-                out_container.mux(packet)
-
-    return output_file.getvalue()
+    logger.info("TTS synthesized %d bytes MP3 for voice %s", len(mp3_bytes), voice)
+    return mp3_bytes
 
 
 def get_tts_status() -> dict:
-    return {"engine": "edge", "available": ["edge"]}
+    return {"engine": "edge", "format": "mp3", "available": ["edge"]}
 
-
-def synthesize_speech(text: str, voice: str = "Ezinne") -> bytes:
-    """Synthesize spoken guidance using Microsoft Edge TTS."""
-    text = text.strip()
-    if not text:
-        text = "Please try again."
-
-    return _synthesize_edge_tts(text, voice)

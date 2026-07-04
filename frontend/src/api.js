@@ -163,13 +163,9 @@ export async function consultAudio(blob, conversationId = null) {
   const returnedConversationId = res.headers.get('X-VoiceMed-ConversationId') || conversationId
 
   const audioBlob = await res.blob()
-  if (audioBlob.size < 500) throw new Error(`empty_audio:${audioBlob.size}`)
+  if (audioBlob.size < 100) throw new Error(`empty_audio:${audioBlob.size}`)
 
-  const wavBlob = audioBlob.type?.includes('wav')
-    ? audioBlob
-    : new Blob([audioBlob], { type: 'audio/wav' })
-
-  return { blob: wavBlob, transcript, guidance, escalate, conversationId: returnedConversationId }
+  return { blob: audioBlob, transcript, guidance, escalate, conversationId: returnedConversationId }
 }
 
 export async function getConversationTurns(conversationId) {
