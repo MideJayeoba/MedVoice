@@ -17,3 +17,6 @@ av>=12.0.0
 
 # Text-to-speech for Nigerian accent (en-NG)
 edge-tts>=7.2.8
+
+# PostgreSQL DB driver for Supabase
+psycopg2-binary>=2.9.0

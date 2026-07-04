@@ -1,14 +1,23 @@
-"""SQLite database — DDL and raw CRUD helpers.
+"""SQLite & PostgreSQL database — DDL and raw CRUD helpers.
 
 All functions use context managers so connections are always closed.
 No business logic lives here — only SQL.
 """
 
-import sqlite3
+import os
 import logging
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
+# Optional PostgreSQL imports
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+except ImportError:
+    psycopg2 = None
+    RealDictCursor = None
+
+import sqlite3
 from backend.config import DB_PATH
 
 logger = logging.getLogger(__name__)
@@ -20,19 +29,63 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def _get_conn():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        if psycopg2 is None:
+            raise RuntimeError(
+                "DATABASE_URL is set for PostgreSQL but psycopg2 is not installed. "
+                "Please run: pip install psycopg2-binary"
+            )
+        conn = psycopg2.connect(DATABASE_URL)
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    else:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+
+def _execute(conn, sql: str, params: tuple = ()):
+    """Execute a SQL query using SQLite or PostgreSQL, translating placeholders."""
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        sql = sql.replace("?", "%s")
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(sql, params)
+        return cur
+    else:
+        return conn.execute(sql, params)
+
+
+def _insert(conn, sql: str, params: tuple = ()) -> int:
+    """Execute an INSERT query and return the generated row ID."""
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        sql = sql.replace("?", "%s") + " RETURNING id"
+        cur = conn.cursor()
+        cur.execute(sql, params)
+        row_id = cur.fetchone()[0]
+        cur.close()
+        return row_id
+    else:
+        cur = conn.execute(sql, params)
+        return cur.lastrowid
 
 
 # ---------------------------------------------------------------------------
@@ -41,47 +94,84 @@ def _get_conn():
 
 def init_db() -> None:
     """Create all tables if they don't already exist."""
-    with _get_conn() as conn:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS users (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                username      TEXT    NOT NULL UNIQUE,
-                email         TEXT    NOT NULL UNIQUE,
-                password_hash TEXT    NOT NULL,
-                salt          TEXT    NOT NULL,
-                tts_voice     TEXT    NOT NULL DEFAULT 'Ezinne',
-                created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
-            );
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id            SERIAL PRIMARY KEY,
+                        username      VARCHAR(255) NOT NULL UNIQUE,
+                        email         VARCHAR(255) NOT NULL UNIQUE,
+                        password_hash TEXT NOT NULL,
+                        salt          TEXT NOT NULL,
+                        tts_voice     VARCHAR(50) NOT NULL DEFAULT 'Ezinne',
+                        created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );
 
-            CREATE TABLE IF NOT EXISTS sessions (
-                token      TEXT PRIMARY KEY,
-                user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                expires_at TEXT    NOT NULL
-            );
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        token      VARCHAR(255) PRIMARY KEY,
+                        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        expires_at TIMESTAMP NOT NULL
+                    );
 
-            CREATE TABLE IF NOT EXISTS consultations (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                transcript TEXT    NOT NULL DEFAULT '',
-                guidance   TEXT    NOT NULL DEFAULT '',
-                escalate   INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT    NOT NULL DEFAULT (datetime('now'))
-            );
-        """)
-        # Migrations for existing database instances
-        for stmt in [
-            "ALTER TABLE users ADD COLUMN tts_voice TEXT NOT NULL DEFAULT 'Ezinne'",
-            "ALTER TABLE consultations ADD COLUMN conversation_id TEXT",
-            "ALTER TABLE consultations ADD COLUMN triage_category TEXT",
-            "ALTER TABLE consultations ADD COLUMN triage_department TEXT",
-            "ALTER TABLE consultations ADD COLUMN triage_priority TEXT",
-            "ALTER TABLE consultations ADD COLUMN triage_confidence REAL",
-        ]:
-            try:
-                conn.execute(stmt)
-            except sqlite3.OperationalError:
-                pass  # column already exists
-    logger.info("Database initialised at %s", DB_PATH)
+                    CREATE TABLE IF NOT EXISTS consultations (
+                        id                SERIAL PRIMARY KEY,
+                        user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        transcript        TEXT NOT NULL DEFAULT '',
+                        guidance          TEXT NOT NULL DEFAULT '',
+                        escalate          INTEGER NOT NULL DEFAULT 0,
+                        conversation_id   VARCHAR(255),
+                        triage_category   VARCHAR(255),
+                        triage_department VARCHAR(255),
+                        triage_priority   VARCHAR(255),
+                        triage_confidence REAL,
+                        created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+        logger.info("Database initialised on Supabase PostgreSQL")
+    else:
+        with _get_conn() as conn:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username      TEXT    NOT NULL UNIQUE,
+                    email         TEXT    NOT NULL UNIQUE,
+                    password_hash TEXT    NOT NULL,
+                    salt          TEXT    NOT NULL,
+                    tts_voice     TEXT    NOT NULL DEFAULT 'Ezinne',
+                    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token      TEXT PRIMARY KEY,
+                    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    expires_at TEXT    NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS consultations (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    transcript TEXT    NOT NULL DEFAULT '',
+                    guidance   TEXT    NOT NULL DEFAULT '',
+                    escalate   INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+                );
+            """)
+            # Migrations for existing SQLite database instances
+            for stmt in [
+                "ALTER TABLE users ADD COLUMN tts_voice TEXT NOT NULL DEFAULT 'Ezinne'",
+                "ALTER TABLE consultations ADD COLUMN conversation_id TEXT",
+                "ALTER TABLE consultations ADD COLUMN triage_category TEXT",
+                "ALTER TABLE consultations ADD COLUMN triage_department TEXT",
+                "ALTER TABLE consultations ADD COLUMN triage_priority TEXT",
+                "ALTER TABLE consultations ADD COLUMN triage_confidence REAL",
+            ]:
+                try:
+                    conn.execute(stmt)
+                except sqlite3.OperationalError:
+                    pass  # column already exists
+        logger.info("Database initialised at SQLite %s", DB_PATH)
 
 
 # ---------------------------------------------------------------------------
@@ -91,44 +181,47 @@ def init_db() -> None:
 def db_create_user(username: str, email: str, password_hash: str, salt: str) -> int:
     """Insert a new user and return the new row id."""
     with _get_conn() as conn:
-        cur = conn.execute(
+        return _insert(
+            conn,
             "INSERT INTO users (username, email, password_hash, salt) VALUES (?, ?, ?, ?)",
             (username, email, password_hash, salt),
         )
-        return cur.lastrowid
 
 
 def db_update_user_voice(user_id: int, voice: str) -> None:
     """Update user's preferred TTS voice choice."""
     with _get_conn() as conn:
-        conn.execute(
+        _execute(
+            conn,
             "UPDATE users SET tts_voice = ? WHERE id = ?",
             (voice, user_id),
         )
 
 
-
 def db_get_user_by_username(username: str) -> dict | None:
     with _get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE username = ?", (username,)
-        ).fetchone()
+        cur = _execute(
+            conn, "SELECT * FROM users WHERE username = ?", (username,)
+        )
+        row = cur.fetchone()
         return dict(row) if row else None
 
 
 def db_get_user_by_email(email: str) -> dict | None:
     with _get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE email = ?", (email,)
-        ).fetchone()
+        cur = _execute(
+            conn, "SELECT * FROM users WHERE email = ?", (email,)
+        )
+        row = cur.fetchone()
         return dict(row) if row else None
 
 
 def db_get_user_by_id(user_id: int) -> dict | None:
     with _get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE id = ?", (user_id,)
-        ).fetchone()
+        cur = _execute(
+            conn, "SELECT * FROM users WHERE id = ?", (user_id,)
+        )
+        row = cur.fetchone()
         return dict(row) if row else None
 
 
@@ -138,31 +231,33 @@ def db_get_user_by_id(user_id: int) -> dict | None:
 
 def db_create_session(token: str, user_id: int, expires_at: datetime) -> None:
     with _get_conn() as conn:
-        conn.execute(
+        _execute(
+            conn,
             "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-            (token, user_id, expires_at.isoformat()),
+            (token, user_id, expires_at.isoformat() if os.getenv("DATABASE_URL") is None else expires_at),
         )
 
 
 def db_get_session(token: str) -> dict | None:
     with _get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM sessions WHERE token = ?", (token,)
-        ).fetchone()
+        cur = _execute(
+            conn, "SELECT * FROM sessions WHERE token = ?", (token,)
+        )
+        row = cur.fetchone()
         return dict(row) if row else None
 
 
 def db_delete_session(token: str) -> None:
     with _get_conn() as conn:
-        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        _execute(conn, "DELETE FROM sessions WHERE token = ?", (token,))
 
 
 def db_purge_expired_sessions() -> int:
     """Remove expired sessions; returns count deleted."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat() if os.getenv("DATABASE_URL") is None else datetime.now(timezone.utc)
     with _get_conn() as conn:
-        cur = conn.execute(
-            "DELETE FROM sessions WHERE expires_at < ?", (now,)
+        cur = _execute(
+            conn, "DELETE FROM sessions WHERE expires_at < ?", (now,)
         )
         return cur.rowcount
 
@@ -178,7 +273,8 @@ def db_save_consultation(
 ) -> int:
     t = triage or {}
     with _get_conn() as conn:
-        cur = conn.execute(
+        return _insert(
+            conn,
             "INSERT INTO consultations (user_id, transcript, guidance, escalate, conversation_id,"
             " triage_category, triage_department, triage_priority, triage_confidence)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -187,25 +283,28 @@ def db_save_consultation(
                 t.get("category"), t.get("department"), t.get("priority"), t.get("confidence"),
             ),
         )
-        return cur.lastrowid
 
 
 def db_get_consultations(user_id: int) -> list[dict]:
     with _get_conn() as conn:
-        rows = conn.execute(
+        cur = _execute(
+            conn,
             "SELECT * FROM consultations WHERE user_id = ? ORDER BY created_at DESC",
             (user_id,),
-        ).fetchall()
+        )
+        rows = cur.fetchall()
         return [dict(r) for r in rows]
 
 
 def db_get_conversation(conversation_id: str) -> list[dict]:
     """Return all turns for a conversation, oldest first."""
     with _get_conn() as conn:
-        rows = conn.execute(
+        cur = _execute(
+            conn,
             "SELECT * FROM consultations WHERE conversation_id = ? ORDER BY created_at ASC",
             (conversation_id,),
-        ).fetchall()
+        )
+        rows = cur.fetchall()
         return [dict(r) for r in rows]
 
 
@@ -222,7 +321,8 @@ def db_get_conversations(user_id: int) -> list[dict]:
     session, not one per message.
     """
     with _get_conn() as conn:
-        rows = conn.execute(
+        cur = _execute(
+            conn,
             """
             SELECT c.conversation_id,
                    MIN(c.created_at) AS started_at,
@@ -248,7 +348,8 @@ def db_get_conversations(user_id: int) -> list[dict]:
              ORDER BY last_at DESC
             """,
             (user_id,),
-        ).fetchall()
+        )
+        rows = cur.fetchall()
         result = []
         for r in rows:
             d = dict(r)
