@@ -23,13 +23,41 @@ from backend.config import DB_PATH
 logger = logging.getLogger(__name__)
 
 
+def _clean_postgres_url(url: str) -> str:
+    """Strip query parameters not supported by psycopg2 (like direct_url, pgbouncer)."""
+    if not url:
+        return url
+    from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    try:
+        # Take first token in case of multiple env variables copy-pasted or spaces
+        url = url.strip().split()[0]
+        parsed = urlparse(url)
+        if parsed.query:
+            valid_options = {
+                "sslmode", "sslrootcert", "sslcert", "sslkey",
+                "connect_timeout", "application_name", "keepalives"
+            }
+            qs = parse_qs(parsed.query)
+            filtered_qs = {k: v for k, v in qs.items() if k.lower() in valid_options}
+            new_query = urlencode(filtered_qs, doseq=True)
+            parsed = parsed._replace(query=new_query)
+            return urlunparse(parsed)
+        return url
+    except Exception:
+        return url
+
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    DATABASE_URL = _clean_postgres_url(DATABASE_URL)
+
+
 # ---------------------------------------------------------------------------
 # Connection helper
 # ---------------------------------------------------------------------------
 
 @contextmanager
 def _get_conn():
-    DATABASE_URL = os.getenv("DATABASE_URL")
     if DATABASE_URL:
         if psycopg2 is None:
             raise RuntimeError(
@@ -63,7 +91,6 @@ def _get_conn():
 
 def _execute(conn, sql: str, params: tuple = ()):
     """Execute a SQL query using SQLite or PostgreSQL, translating placeholders."""
-    DATABASE_URL = os.getenv("DATABASE_URL")
     if DATABASE_URL:
         sql = sql.replace("?", "%s")
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -75,7 +102,6 @@ def _execute(conn, sql: str, params: tuple = ()):
 
 def _insert(conn, sql: str, params: tuple = ()) -> int:
     """Execute an INSERT query and return the generated row ID."""
-    DATABASE_URL = os.getenv("DATABASE_URL")
     if DATABASE_URL:
         sql = sql.replace("?", "%s") + " RETURNING id"
         cur = conn.cursor()
@@ -94,10 +120,10 @@ def _insert(conn, sql: str, params: tuple = ()) -> int:
 
 def init_db() -> None:
     """Create all tables if they don't already exist."""
-    DATABASE_URL = os.getenv("DATABASE_URL")
     if DATABASE_URL:
         with _get_conn() as conn:
             with conn.cursor() as cur:
+
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS users (
                         id            SERIAL PRIMARY KEY,
@@ -234,7 +260,7 @@ def db_create_session(token: str, user_id: int, expires_at: datetime) -> None:
         _execute(
             conn,
             "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-            (token, user_id, expires_at.isoformat() if os.getenv("DATABASE_URL") is None else expires_at),
+            (token, user_id, expires_at.isoformat() if DATABASE_URL is None else expires_at),
         )
 
 
@@ -254,7 +280,7 @@ def db_delete_session(token: str) -> None:
 
 def db_purge_expired_sessions() -> int:
     """Remove expired sessions; returns count deleted."""
-    now = datetime.now(timezone.utc).isoformat() if os.getenv("DATABASE_URL") is None else datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).isoformat() if DATABASE_URL is None else datetime.now(timezone.utc)
     with _get_conn() as conn:
         cur = _execute(
             conn, "DELETE FROM sessions WHERE expires_at < ?", (now,)
