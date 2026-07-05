@@ -61,7 +61,12 @@ def register(body: UserRegister) -> dict:
         )
     try:
         pwd_hash, salt = hash_password(body.password)
-        db_create_user(body.username, str(body.email), pwd_hash, salt)
+        db_create_user(
+            body.username, str(body.email), pwd_hash, salt,
+            first_name=body.first_name.strip(),
+            middle_name=body.middle_name.strip() if body.middle_name else None,
+            last_name=body.last_name.strip(),
+        )
         logger.info("New user registered: %s <%s>", body.username, body.email)
         return {"status": "registered", "username": body.username}
     except sqlite3.IntegrityError as exc:
@@ -147,7 +152,11 @@ def google_login(body: GoogleLogin) -> TokenResponse:
         while db_get_user_by_username(username):
             username = f"{base}{secrets.randbelow(10000)}"
         pwd_hash, salt = hash_password(secrets.token_urlsafe(32))
-        db_create_user(username, email, pwd_hash, salt)
+        db_create_user(
+            username, email, pwd_hash, salt,
+            first_name=info.get("given_name"),
+            last_name=info.get("family_name"),
+        )
         user = db_get_user_by_email(email)
         logger.info("New user via Google: %s <%s>", username, email)
 
@@ -200,6 +209,9 @@ def me(current_user: dict = Depends(get_current_user)) -> UserOut:
         id=current_user["id"],
         username=current_user["username"],
         email=current_user.get("email", ""),
+        first_name=current_user.get("first_name"),
+        middle_name=current_user.get("middle_name"),
+        last_name=current_user.get("last_name"),
         created_at=current_user["created_at"],
         tts_voice=current_user.get("tts_voice", "Ezinne"),
         history=history,

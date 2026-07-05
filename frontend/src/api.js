@@ -51,11 +51,16 @@ async function apiFetch(path, options = {}) {
 // Auth endpoints
 // ---------------------------------------------------------------------------
 
-export async function registerUser(username, email, password) {
+export async function registerUser(username, email, password, firstName, middleName, lastName) {
   const res = await apiFetch('/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, email, password }),
+    body: JSON.stringify({
+      username, email, password,
+      first_name: firstName,
+      middle_name: middleName || null,
+      last_name: lastName,
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Registration failed' }))

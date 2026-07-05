@@ -112,7 +112,8 @@ def chat(
 ) -> ChatResponse:
     try:
         history = db_get_conversation(body.conversation_id) if body.conversation_id else []
-        reply, triage = run_consult_text(body.message, history=history)
+        user_name = (current_user.get("first_name") or current_user.get("username")) if current_user else None
+        reply, triage = run_consult_text(body.message, history=history, user_name=user_name)
         escalate = bool(triage and triage.get("priority") == "Emergency")
 
         if current_user:
@@ -180,7 +181,10 @@ async def consult(
         voice = current_user.get("tts_voice", "Ezinne") if current_user else "Ezinne"
         # Use only the current conversation's history so the LLM has coherent context
         history = db_get_conversation(conversation_id) if conversation_id else []
-        audio_bytes, meta = run_voice_consult(audio_bytes, audio.content_type, voice=voice, history=history)
+        user_name = (current_user.get("first_name") or current_user.get("username")) if current_user else None
+        audio_bytes, meta = run_voice_consult(
+            audio_bytes, audio.content_type, voice=voice, history=history, user_name=user_name,
+        )
 
         if current_user:
             db_save_consultation(

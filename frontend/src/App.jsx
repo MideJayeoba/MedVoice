@@ -59,6 +59,9 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
   const [username, setUsername] = useState('')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
+  const [firstName, setFirstName]   = useState('')
+  const [middleName, setMiddleName] = useState('')
+  const [lastName, setLastName]     = useState('')
   const [error, setError]       = useState('')
   const [busy, setBusy]         = useState(false)
   const googleBtnRef = useRef(null)
@@ -66,7 +69,7 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
   async function submit(e) {
     e.preventDefault(); setError(''); setBusy(true)
     try {
-      if (mode === 'register') await registerUser(username, email, password)
+      if (mode === 'register') await registerUser(username, email, password, firstName, middleName, lastName)
       await loginUser(mode === 'register' ? email : username, password)
       onLogin(await getUserProfile())
     } catch (err) { setError(err.message || 'Something went wrong') }
@@ -146,8 +149,21 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
               value={username} onChange={e => setUsername(e.target.value)}
             />
             {mode === 'register' && (
-              <AuthInput label="Email Address" icon="✉️" type="email" autoComplete="email" required
-                placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <AuthInput label="First Name" icon="🪪" type="text" autoComplete="given-name" required
+                    maxLength={100} placeholder="Chioma"
+                    value={firstName} onChange={e => setFirstName(e.target.value)} />
+                  <AuthInput label="Last Name" icon="🪪" type="text" autoComplete="family-name" required
+                    maxLength={100} placeholder="Adeyemi"
+                    value={lastName} onChange={e => setLastName(e.target.value)} />
+                </div>
+                <AuthInput label="Middle Name (optional)" icon="🪪" type="text" autoComplete="additional-name"
+                  maxLength={100} placeholder="Amara"
+                  value={middleName} onChange={e => setMiddleName(e.target.value)} />
+                <AuthInput label="Email Address" icon="✉️" type="email" autoComplete="email" required
+                  placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+              </>
             )}
             <AuthInput label="Password" icon="🔒" type="password" required minLength={6}
               autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
@@ -545,7 +561,7 @@ function ListenView({ state, micHandler, triage, chatText, setChatText, chatBusy
       {/* Greeting — desktop gets more headline */}
       <div className="text-center shrink-0">
         <h2 className="hidden lg:block text-3xl xl:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          How can I help, {user.username}?
+          How can I help, {user.first_name || user.username}?
         </h2>
         <p className="hidden lg:block text-slate-400 dark:text-slate-500 text-sm mt-2">
           Speak naturally about how you are feeling

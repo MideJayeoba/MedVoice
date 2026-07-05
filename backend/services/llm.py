@@ -51,7 +51,9 @@ Boundaries:
 - Do not claim certainty where uncertainty exists.
 
 Style:
-- Speak in warm, natural Nigerian English.
+- Speak in clear, warm, natural standard English.
+- Do NOT use pidgin exclamations or slang address terms such as "Oga", "Ejor", "Omo", "Abeg", "My dear", "Madam", or "Sah". Never open a reply with them.
+- When you know the user's name, address them by their first name — mainly in your first reply or when reassurance genuinely calls for it, not in every message.
 - Sound human, calm, practical, and reassuring.
 - Use simple words and avoid unnecessary medical jargon.
 - Prefer actionable guidance over warnings.
@@ -59,6 +61,16 @@ Style:
 - Avoid repetitive disclaimers.
 - End with a gentle next step only when useful.
 """)
+
+
+def _name_hint(user_name: str | None) -> str:
+    if not user_name:
+        return ""
+    return (
+        f"\n\nThe user's first name is {user_name}. Greet or address them by this "
+        "name naturally when it fits (especially early in the conversation), "
+        "but do not repeat it in every reply."
+    )
 
 def _triage_hint(triage: dict | None) -> str:
     """Render the ML triage prediction as low-key background context.
@@ -100,9 +112,10 @@ def _triage_hint(triage: dict | None) -> str:
     )
 
 
-def _build_messages(query: str, history: list[dict] | None, triage: dict | None = None) -> list[dict]:
+def _build_messages(query: str, history: list[dict] | None, triage: dict | None = None,
+                    user_name: str | None = None) -> list[dict]:
     """Build chat message list with optional prior consultation context."""
-    messages = [{"role": "system", "content": SYSTEM_PROMPT + _triage_hint(triage)}]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + _name_hint(user_name) + _triage_hint(triage)}]
     for item in (history or [])[-5:]:  # include up to 5 prior turns
         if item.get("transcript"):
             messages.append({"role": "user", "content": item["transcript"]})
@@ -112,7 +125,8 @@ def _build_messages(query: str, history: list[dict] | None, triage: dict | None 
     return messages
 
 
-def _call_groq(query: str, history: list[dict] | None = None, triage: dict | None = None) -> str | None:
+def _call_groq(query: str, history: list[dict] | None = None, triage: dict | None = None,
+               user_name: str | None = None) -> str | None:
     """Call Groq API (Llama 3.1 8B). Returns text or None on failure."""
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -121,7 +135,7 @@ def _call_groq(query: str, history: list[dict] | None = None, triage: dict | Non
     }
     payload = {
         "model": "llama-3.1-8b-instant",
-        "messages": _build_messages(query, history, triage),
+        "messages": _build_messages(query, history, triage, user_name),
         "temperature": LLM_TEMPERATURE,
         "max_tokens": LLM_MAX_TOKENS,
     }
@@ -140,7 +154,8 @@ def _call_groq(query: str, history: list[dict] | None = None, triage: dict | Non
     return None
 
 
-def _call_gemini(query: str, history: list[dict] | None = None, triage: dict | None = None) -> str | None:
+def _call_gemini(query: str, history: list[dict] | None = None, triage: dict | None = None,
+                 user_name: str | None = None) -> str | None:
     """Call Gemini 2.5 Flash Lite. Returns text or None on failure."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     contents = []
@@ -152,7 +167,7 @@ def _call_gemini(query: str, history: list[dict] | None = None, triage: dict | N
     contents.append({"role": "user", "parts": [{"text": query}]})
     payload = {
         "contents": contents,
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT + _triage_hint(triage)}]},
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT + _name_hint(user_name) + _triage_hint(triage)}]},
         "generationConfig": {
             "temperature": LLM_TEMPERATURE,
             "maxOutputTokens": LLM_MAX_TOKENS,
@@ -180,15 +195,16 @@ FALLBACK = (
 )
 
 
-def generate_guidance(query: str, history: list[dict] | None = None, triage: dict | None = None) -> str:
+def generate_guidance(query: str, history: list[dict] | None = None, triage: dict | None = None,
+                      user_name: str | None = None) -> str:
     """Send transcript to cloud LLM and return the response text."""
     if GROQ_API_KEY:
-        result = _call_groq(query, history, triage)
+        result = _call_groq(query, history, triage, user_name)
         if result:
             return result
 
     if GEMINI_API_KEY:
-        result = _call_gemini(query, history, triage)
+        result = _call_gemini(query, history, triage, user_name)
         if result:
             return result
 

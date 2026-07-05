@@ -7,6 +7,9 @@ class UserRegister(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
     password: str = Field(..., min_length=6)
+    first_name: str = Field(..., min_length=1, max_length=100)
+    middle_name: str | None = Field(None, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
 
 
 class UserLogin(BaseModel):
@@ -48,6 +51,9 @@ class UserOut(BaseModel):
     id: int
     username: str
     email: str
+    first_name: str | None = None
+    middle_name: str | None = None
+    last_name: str | None = None
     tts_voice: str = "Ezinne"
     created_at: str
     history: list[ConsultHistoryItem] = []

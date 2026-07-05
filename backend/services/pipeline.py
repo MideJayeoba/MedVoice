@@ -92,10 +92,11 @@ def _apply_emergency_safety(guidance: str, triage: dict | None) -> str:
 def run_consult_text(
     query: str,
     history: list[dict] | None = None,
+    user_name: str | None = None,
 ) -> tuple[str, dict | None]:
     """Text-only pipeline: triage → LLM. Returns (guidance, triage)."""
     triage = triage_for_conversation(query, history)
-    guidance = generate_guidance(query, history=history, triage=triage)
+    guidance = generate_guidance(query, history=history, triage=triage, user_name=user_name)
     guidance = _apply_emergency_safety(guidance, triage)
     return guidance, triage
 
@@ -105,11 +106,12 @@ def run_voice_consult(
     content_type: str | None,
     voice: str = "Ezinne",
     history: list[dict] | None = None,
+    user_name: str | None = None,
 ) -> tuple[bytes, dict]:
     """Full pipeline: transcribe → triage → LLM reasoning → TTS."""
     transcript = transcribe_audio(audio_bytes, content_type)
     triage = triage_for_conversation(transcript, history)
-    guidance = generate_guidance(transcript, history=history, triage=triage)
+    guidance = generate_guidance(transcript, history=history, triage=triage, user_name=user_name)
     guidance = _apply_emergency_safety(guidance, triage)
     wav = synthesize_speech(guidance, voice=voice)
 

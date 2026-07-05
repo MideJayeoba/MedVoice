@@ -155,9 +155,16 @@ def init_db() -> None:
                         email         VARCHAR(255) NOT NULL UNIQUE,
                         password_hash TEXT NOT NULL,
                         salt          TEXT NOT NULL,
+                        first_name    VARCHAR(100),
+                        middle_name   VARCHAR(100),
+                        last_name     VARCHAR(100),
                         tts_voice     VARCHAR(50) NOT NULL DEFAULT 'Ezinne',
                         created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     );
+
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name  VARCHAR(100);
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS middle_name VARCHAR(100);
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name   VARCHAR(100);
 
                     CREATE TABLE IF NOT EXISTS sessions (
                         token      VARCHAR(255) PRIMARY KEY,
@@ -211,6 +218,9 @@ def init_db() -> None:
             # Migrations for existing SQLite database instances
             for stmt in [
                 "ALTER TABLE users ADD COLUMN tts_voice TEXT NOT NULL DEFAULT 'Ezinne'",
+                "ALTER TABLE users ADD COLUMN first_name TEXT",
+                "ALTER TABLE users ADD COLUMN middle_name TEXT",
+                "ALTER TABLE users ADD COLUMN last_name TEXT",
                 "ALTER TABLE consultations ADD COLUMN conversation_id TEXT",
                 "ALTER TABLE consultations ADD COLUMN triage_category TEXT",
                 "ALTER TABLE consultations ADD COLUMN triage_department TEXT",
@@ -228,13 +238,19 @@ def init_db() -> None:
 # Users
 # ---------------------------------------------------------------------------
 
-def db_create_user(username: str, email: str, password_hash: str, salt: str) -> int:
+def db_create_user(
+    username: str, email: str, password_hash: str, salt: str,
+    first_name: str | None = None,
+    middle_name: str | None = None,
+    last_name: str | None = None,
+) -> int:
     """Insert a new user and return the new row id."""
     with _get_conn() as conn:
         return _insert(
             conn,
-            "INSERT INTO users (username, email, password_hash, salt) VALUES (?, ?, ?, ?)",
-            (username, email, password_hash, salt),
+            "INSERT INTO users (username, email, password_hash, salt,"
+            " first_name, middle_name, last_name) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (username, email, password_hash, salt, first_name, middle_name, last_name),
         )
 
 
