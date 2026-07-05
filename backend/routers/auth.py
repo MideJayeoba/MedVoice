@@ -1,8 +1,11 @@
 """Authentication router — /auth/* endpoints."""
 
 import logging
+import os
+import secrets
 import sqlite3
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.database.db import (
@@ -19,6 +22,7 @@ from backend.database.db import (
 from backend.dependencies.auth import get_current_user
 from backend.schemas.auth import (
     ConsultHistoryItem,
+    GoogleLogin,
     VoiceUpdate,
     ConversationSummary,
     TokenResponse,
@@ -94,6 +98,63 @@ def login(body: UserLogin) -> TokenResponse:
     payload = decode_access_token(token)
     db_create_session(payload["jti"], user["id"], session_expiry())
     logger.info("User logged in: %s", user["username"])
+    return TokenResponse(access_token=token)
+
+
+@router.post(
+    "/google",
+    response_model=TokenResponse,
+    summary="Login or register with a Google ID token",
+)
+def google_login(body: GoogleLogin) -> TokenResponse:
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not client_id:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google sign-in is not configured on this server",
+        )
+
+    # Verify the ID token with Google (checks signature, expiry, issuer)
+    try:
+        r = httpx.get(
+            "https://oauth2.googleapis.com/tokeninfo",
+            params={"id_token": body.credential},
+            timeout=10.0,
+        )
+    except Exception as exc:
+        logger.exception("Google tokeninfo unreachable: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach Google — try again")
+
+    if r.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    info = r.json()
+
+    # The token must have been issued for OUR client id
+    if info.get("aud") != client_id:
+        logger.warning("Google token aud mismatch: %s", info.get("aud"))
+        raise HTTPException(status_code=401, detail="Google token was not issued for this app")
+    if info.get("email_verified") not in ("true", True):
+        raise HTTPException(status_code=401, detail="Google account email is not verified")
+
+    email = info["email"].lower()
+    user = db_get_user_by_email(email)
+
+    if not user:
+        # First Google sign-in: create an account. Password is a random
+        # throwaway — these users authenticate via Google, not passwords.
+        base = email.split("@")[0][:40] or "user"
+        username = base
+        while db_get_user_by_username(username):
+            username = f"{base}{secrets.randbelow(10000)}"
+        pwd_hash, salt = hash_password(secrets.token_urlsafe(32))
+        db_create_user(username, email, pwd_hash, salt)
+        user = db_get_user_by_email(email)
+        logger.info("New user via Google: %s <%s>", username, email)
+
+    token = create_access_token(user["id"], user["username"])
+    payload = decode_access_token(token)
+    db_create_session(payload["jti"], user["id"], session_expiry())
+    logger.info("Google login: %s", user["username"])
     return TokenResponse(access_token=token)
 
 

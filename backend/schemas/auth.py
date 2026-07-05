@@ -58,3 +58,8 @@ class VoiceUpdate(BaseModel):
     voice: str
 
 
+class GoogleLogin(BaseModel):
+    """ID token (credential) returned by Google Identity Services on the frontend."""
+    credential: str = Field(..., min_length=20)
+
+

@@ -100,6 +100,19 @@ def _get_conn():
             conn.close()
 
 
+def _row(row) -> dict:
+    """Convert a DB row to a plain dict with JSON-friendly values.
+
+    Postgres returns datetime objects for TIMESTAMP columns while SQLite
+    returns ISO strings; the API schemas expect strings, so normalise here.
+    """
+    d = dict(row)
+    for k, v in d.items():
+        if isinstance(v, datetime):
+            d[k] = v.isoformat()
+    return d
+
+
 def _execute(conn, sql: str, params: tuple = ()):
     """Execute a SQL query using SQLite or PostgreSQL, translating placeholders."""
     if DATABASE_URL:
@@ -241,7 +254,7 @@ def db_get_user_by_username(username: str) -> dict | None:
             conn, "SELECT * FROM users WHERE username = ?", (username,)
         )
         row = cur.fetchone()
-        return dict(row) if row else None
+        return _row(row) if row else None
 
 
 def db_get_user_by_email(email: str) -> dict | None:
@@ -250,7 +263,7 @@ def db_get_user_by_email(email: str) -> dict | None:
             conn, "SELECT * FROM users WHERE email = ?", (email,)
         )
         row = cur.fetchone()
-        return dict(row) if row else None
+        return _row(row) if row else None
 
 
 def db_get_user_by_id(user_id: int) -> dict | None:
@@ -259,7 +272,7 @@ def db_get_user_by_id(user_id: int) -> dict | None:
             conn, "SELECT * FROM users WHERE id = ?", (user_id,)
         )
         row = cur.fetchone()
-        return dict(row) if row else None
+        return _row(row) if row else None
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +294,7 @@ def db_get_session(token: str) -> dict | None:
             conn, "SELECT * FROM sessions WHERE token = ?", (token,)
         )
         row = cur.fetchone()
-        return dict(row) if row else None
+        return _row(row) if row else None
 
 
 def db_delete_session(token: str) -> None:
@@ -330,7 +343,7 @@ def db_get_consultations(user_id: int) -> list[dict]:
             (user_id,),
         )
         rows = cur.fetchall()
-        return [dict(r) for r in rows]
+        return [_row(r) for r in rows]
 
 
 def db_get_conversation(conversation_id: str) -> list[dict]:
@@ -342,7 +355,7 @@ def db_get_conversation(conversation_id: str) -> list[dict]:
             (conversation_id,),
         )
         rows = cur.fetchall()
-        return [dict(r) for r in rows]
+        return [_row(r) for r in rows]
 
 
 _PRIORITY_RANK = {"Emergency": 4, "High": 3, "Moderate": 2, "Low": 1}
@@ -389,7 +402,7 @@ def db_get_conversations(user_id: int) -> list[dict]:
         rows = cur.fetchall()
         result = []
         for r in rows:
-            d = dict(r)
+            d = _row(r)
             d["priority"] = _RANK_PRIORITY.get(d.pop("priority_rank", 0) or 0)
             result.append(d)
         return result

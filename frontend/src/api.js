@@ -94,6 +94,22 @@ function _extractDetail(err, fallback) {
   return fallback
 }
 
+/** Exchange a Google Identity Services credential for our JWT. */
+export async function loginWithGoogle(credential) {
+  const res = await apiFetch('/auth/google', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Google sign-in failed' }))
+    throw new Error(_extractDetail(err, 'Google sign-in failed'))
+  }
+  const data = await res.json()
+  setStoredToken(data.access_token)
+  return data
+}
+
 export async function logoutUser() {
   const token = getStoredToken()
   if (token) {

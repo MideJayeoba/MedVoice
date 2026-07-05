@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import './index.css'
 import {
   consultAudio, consultText, getConversationTurns, getUserProfile,
-  loginUser, logoutUser, registerUser, speakText, predictTriageNow,
+  loginUser, loginWithGoogle, logoutUser, registerUser, speakText, predictTriageNow,
   getStoredToken, updateUserVoice,
 } from './api'
 import { playWavBlob, stopPlayback, unlockAudioOutput } from './audioPlayer'
@@ -52,6 +52,8 @@ export default function App() {
 }
 
 // ─── Auth Screen (Stitch: auth_refined) ──────────────────────
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+
 function AuthScreen({ onLogin, dark, onToggleTheme }) {
   const [mode, setMode]         = useState('login')
   const [username, setUsername] = useState('')
@@ -59,6 +61,7 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [busy, setBusy]         = useState(false)
+  const googleBtnRef = useRef(null)
 
   async function submit(e) {
     e.preventDefault(); setError(''); setBusy(true)
@@ -69,6 +72,36 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
     } catch (err) { setError(err.message || 'Something went wrong') }
     finally { setBusy(false) }
   }
+
+  // Google Identity Services: load script once, render the official button
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return
+    const init = () => {
+      if (!window.google?.accounts?.id || !googleBtnRef.current) return
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async ({ credential }) => {
+          setError(''); setBusy(true)
+          try {
+            await loginWithGoogle(credential)
+            onLogin(await getUserProfile())
+          } catch (err) { setError(err.message || 'Google sign-in failed') }
+          finally { setBusy(false) }
+        },
+      })
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: dark ? 'filled_black' : 'outline',
+        size: 'large', shape: 'pill', width: 320, text: 'continue_with',
+      })
+    }
+    if (window.google?.accounts?.id) { init(); return }
+    const s = document.createElement('script')
+    s.src = 'https://accounts.google.com/gsi/client'
+    s.async = true
+    s.onload = init
+    document.head.appendChild(s)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dark])
 
   return (
     <div className="min-h-screen bg-mint dark:bg-slate-950 flex flex-col transition-colors">
@@ -135,6 +168,17 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
                 : <>{mode === 'login' ? 'Access Account' : 'Create Account'} <span aria-hidden>→</span></>}
             </button>
           </form>
+
+          {GOOGLE_CLIENT_ID && (
+            <>
+              <div className="flex items-center gap-3 my-6">
+                <span className="flex-1 h-px bg-emerald-900/10 dark:bg-slate-700" />
+                <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">or</span>
+                <span className="flex-1 h-px bg-emerald-900/10 dark:bg-slate-700" />
+              </div>
+              <div ref={googleBtnRef} className="flex justify-center" />
+            </>
+          )}
         </div>
 
         <p className="text-center text-slate-400 dark:text-slate-600 text-xs mt-7">
