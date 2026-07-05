@@ -55,7 +55,9 @@ RAG_USE_FAISS = os.getenv("RAG_USE_FAISS", "true").lower() in ("1", "true", "yes
 LOCAL_LLM_MODEL_PATH = Path(
     os.getenv("LOCAL_LLM_MODEL_PATH", str(MODELS_DIR / "llm.gguf"))
 )
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "256"))
+# 256 cut replies mid-sentence (sounded incoherent); 400 lets the model
+# finish cleanly while the prompt keeps replies short.
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "400"))
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.3"))
 LLM_N_THREADS = int(os.getenv("LLM_N_THREADS", "4"))
 LLM_ENABLED = os.getenv("LLM_ENABLED", "auto").lower()  # auto | on | off

@@ -466,6 +466,22 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Desktop view switcher — mobile uses the bottom nav instead */}
+            <div className="hidden lg:flex items-center gap-1.5 mr-2">
+              {[['listen', 'Voice'], ['chat', 'Chat'], ['history', 'History']].map(([id, label]) => (
+                <button key={id} onClick={() => setView(id)}
+                  className={`relative px-4 py-2 rounded-full text-sm font-bold transition-colors ${
+                    view === id
+                      ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/25'
+                      : 'bg-white dark:bg-slate-800 border border-emerald-900/10 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-slate-700'
+                  }`}>
+                  {label}
+                  {id === 'chat' && turns.length > 0 && view !== 'chat' && (
+                    <span className="absolute -top-1 -right-1 w-4.5 h-4.5 min-w-4 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center px-1">{turns.length}</span>
+                  )}
+                </button>
+              ))}
+            </div>
             <ThemeToggle dark={dark} onToggle={onToggleTheme} />
             <div className="relative">
               <button onClick={() => setSettingsOpen(o => !o)} aria-label="Settings"
