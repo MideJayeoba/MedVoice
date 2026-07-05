@@ -24,13 +24,24 @@ logger = logging.getLogger(__name__)
 
 
 def _clean_postgres_url(url: str) -> str:
-    """Strip query parameters not supported by psycopg2 (like direct_url, pgbouncer)."""
+    """Extract a usable psycopg2 DSN from a possibly messy env value.
+
+    Handles values where a whole Supabase/Prisma .env block was pasted in
+    (DATABASE_URL="..." plus DIRECT_URL="..." lines), quotes around the URL,
+    and query parameters psycopg2 doesn't understand (pgbouncer, direct_url).
+    """
     if not url:
         return url
+    import re
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
     try:
-        # Take first token in case of multiple env variables copy-pasted or spaces
-        url = url.strip().split()[0]
+        # Grab the FIRST postgres URL anywhere in the value, ignoring
+        # surrounding quotes, KEY= prefixes, and any extra lines after it.
+        m = re.search(r"postgres(?:ql)?://[^\s'\"]+", url)
+        if m:
+            url = m.group(0)
+        else:
+            url = url.strip().strip("'\"").split()[0]
         parsed = urlparse(url)
         if parsed.query:
             valid_options = {
