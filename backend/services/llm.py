@@ -60,9 +60,49 @@ Style:
 - End with a gentle next step only when useful.
 """)
 
-def _build_messages(query: str, history: list[dict] | None) -> list[dict]:
+def _triage_hint(triage: dict | None) -> str:
+    """Render the ML triage prediction as low-key background context.
+
+    The hint must never override the first-aid-first behaviour: for
+    Moderate/Low urgency the model keeps giving practical steps and asking
+    follow-up questions; only Emergency/High shift the tone to urgency.
+    Low-confidence predictions are explicitly marked as ignorable.
+    """
+    if not triage:
+        return ""
+    priority = triage.get("priority", "")
+    band = triage.get("confidence_band", "low")
+
+    if priority in ("Emergency", "High"):
+        urgency = (
+            "The urgency level is significant: give brief immediate safety steps "
+            "first, then clearly tell the user to seek medical care now."
+        )
+    else:
+        urgency = (
+            "Urgency is NOT high, so follow your normal approach: practical "
+            "first-aid and comfort steps first, then a follow-up question to "
+            "learn more. Do NOT conclude a diagnosis and do NOT tell the user "
+            "to go see a specialist just because of this hint."
+        )
+
+    confidence = {
+        "high": "The classifier is fairly confident, but treat it as one clue among many.",
+        "medium": "The classifier is only moderately confident — weigh the user's own words more.",
+        "low": "The classifier has LOW confidence — largely ignore this hint and rely on the conversation.",
+    }[band]
+
+    return (
+        "\n\nBackground signal (not visible to the user): a triage classifier suggests "
+        f"the complaint may relate to '{triage.get('category', '')}' "
+        f"(department: {triage.get('department', '')}), urgency '{priority}'. "
+        f"{confidence} {urgency}"
+    )
+
+
+def _build_messages(query: str, history: list[dict] | None, triage: dict | None = None) -> list[dict]:
     """Build chat message list with optional prior consultation context."""
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + _triage_hint(triage)}]
     for item in (history or [])[-5:]:  # include up to 5 prior turns
         if item.get("transcript"):
             messages.append({"role": "user", "content": item["transcript"]})
@@ -72,7 +112,7 @@ def _build_messages(query: str, history: list[dict] | None) -> list[dict]:
     return messages
 
 
-def _call_groq(query: str, history: list[dict] | None = None) -> str | None:
+def _call_groq(query: str, history: list[dict] | None = None, triage: dict | None = None) -> str | None:
     """Call Groq API (Llama 3.1 8B). Returns text or None on failure."""
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -81,7 +121,7 @@ def _call_groq(query: str, history: list[dict] | None = None) -> str | None:
     }
     payload = {
         "model": "llama-3.1-8b-instant",
-        "messages": _build_messages(query, history),
+        "messages": _build_messages(query, history, triage),
         "temperature": LLM_TEMPERATURE,
         "max_tokens": LLM_MAX_TOKENS,
     }
@@ -100,7 +140,7 @@ def _call_groq(query: str, history: list[dict] | None = None) -> str | None:
     return None
 
 
-def _call_gemini(query: str, history: list[dict] | None = None) -> str | None:
+def _call_gemini(query: str, history: list[dict] | None = None, triage: dict | None = None) -> str | None:
     """Call Gemini 2.5 Flash Lite. Returns text or None on failure."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     contents = []
@@ -112,7 +152,7 @@ def _call_gemini(query: str, history: list[dict] | None = None) -> str | None:
     contents.append({"role": "user", "parts": [{"text": query}]})
     payload = {
         "contents": contents,
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT + _triage_hint(triage)}]},
         "generationConfig": {
             "temperature": LLM_TEMPERATURE,
             "maxOutputTokens": LLM_MAX_TOKENS,
@@ -140,15 +180,15 @@ FALLBACK = (
 )
 
 
-def generate_guidance(query: str, history: list[dict] | None = None) -> str:
+def generate_guidance(query: str, history: list[dict] | None = None, triage: dict | None = None) -> str:
     """Send transcript to cloud LLM and return the response text."""
     if GROQ_API_KEY:
-        result = _call_groq(query, history)
+        result = _call_groq(query, history, triage)
         if result:
             return result
 
     if GEMINI_API_KEY:
-        result = _call_gemini(query, history)
+        result = _call_gemini(query, history, triage)
         if result:
             return result
 
