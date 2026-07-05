@@ -451,7 +451,7 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
       </aside>
 
       {/* ── Main column ── */}
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
 
         {/* Top bar */}
         <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 shrink-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur border-b border-emerald-900/5 dark:border-slate-800 lg:bg-transparent lg:dark:bg-transparent lg:border-none">
@@ -517,7 +517,9 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
         </header>
 
         {/* Views */}
-        <main className="flex-1 overflow-y-auto flex flex-col min-h-0">
+        {/* overflow-hidden here — each view manages its own scroll area,
+            so the chat thread scrolls while its composer stays pinned */}
+        <main className="flex-1 overflow-hidden flex flex-col min-h-0">
           {view === 'listen'  && <ListenView {...shared} />}
           {view === 'chat'    && <ChatView {...shared} />}
           {view === 'history' && <HistoryView {...shared} />}
@@ -573,7 +575,7 @@ function ListenView({ state, micHandler, triage, chatText, setChatText, chatBusy
     : 'text-emerald-700 dark:text-emerald-400'
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-between px-4 py-6 lg:py-10 min-h-0">
+    <div className="flex-1 flex flex-col items-center justify-between px-4 py-6 lg:py-10 min-h-0 overflow-y-auto">
       {/* Greeting — desktop gets more headline */}
       <div className="text-center shrink-0">
         <h2 className="hidden lg:block text-3xl xl:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
@@ -678,7 +680,7 @@ function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud,
       )}
 
       {/* Thread */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-5 space-y-5">
         {turns.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 text-center py-16">
             <div className="w-16 h-16 rounded-full bg-emerald-700/10 flex items-center justify-center text-2xl">💬</div>
@@ -760,7 +762,7 @@ function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud,
 function HistoryView({ convos, convId, resume, resuming, newConvo, setView }) {
   const groups = groupByDate(convos)
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-5 w-full max-w-3xl mx-auto">
+    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-5 w-full max-w-3xl mx-auto">
       {/* Header: back-to-voice + title + new */}
       <div className="flex items-center justify-between gap-3 mb-5">
         <button onClick={() => setView('listen')}
