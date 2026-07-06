@@ -672,12 +672,6 @@ function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud,
         </div>
       )}
 
-      {/* Session assessment — one evolving verdict for the whole conversation */}
-      {triage && !turns.every(t => t.pending) && (
-        <div className="shrink-0 px-4 pt-3">
-          <SessionAssessment triage={triage} turnCount={turns.length} />
-        </div>
-      )}
 
       {/* Thread */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-5 space-y-5">
@@ -709,6 +703,7 @@ function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud,
                           {[0, 1, 2].map(i => <span key={i} className="w-2 h-2 rounded-full bg-emerald-600/50 wave-bar" style={{ animationDelay: `${i * 0.15}s` }} />)}
                         </span>
                       : <p className="text-[15px] text-slate-800 dark:text-slate-200 leading-relaxed">{turn.guidance || '…'}</p>}
+                    {turn.triage && !turn.pending && <TurnTriage triage={turn.triage} />}
                     {turn.escalate && (
                       <div className="mt-3 flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-2xl px-3.5 py-2.5">
                         <span className="shrink-0">🚨</span>
@@ -918,39 +913,34 @@ function TriageChipsRow({ triage }) {
   )
 }
 
-// Session-level assessment — one evolving verdict pinned atop the chat.
-// Updates as the conversation grows (backend re-predicts on the whole session).
-function SessionAssessment({ triage, turnCount }) {
+// Per-message triage card — shown inside the assistant bubble for the
+// specific message that produced this prediction.
+function TurnTriage({ triage }) {
   const band = triage.confidence_band || 'low'
   const phrase = BAND_PHRASE[band]
   const emergency = triage.priority === 'Emergency'
   return (
-    <div className={`rounded-2xl border p-3.5 ${
+    <div className={`mt-3 rounded-2xl border px-3.5 py-2.5 ${
       emergency
         ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50'
-        : 'bg-white dark:bg-slate-900 border-emerald-900/10 dark:border-slate-700'
-    } shadow-sm`}>
+        : 'bg-emerald-700/5 dark:bg-emerald-500/10 border-emerald-900/10 dark:border-slate-600'
+    }`}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span aria-hidden>🩺</span>
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.12em]">
-              {phrase.prefix}{turnCount > 1 ? ` · from ${turnCount} exchanges` : ''}
-            </p>
-            <p className="text-sm font-extrabold text-emerald-800 dark:text-emerald-400 truncate">
-              {band !== 'high' ? 'Possibly ' : ''}{triage.department}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.12em]">🩺 {phrase.prefix}</p>
+          <p className="text-sm font-extrabold text-emerald-800 dark:text-emerald-400 truncate">
+            {band !== 'high' ? 'Possibly ' : ''}{triage.department}
+          </p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{triage.category}</p>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           <PriorityPill priority={triage.priority} />
           <ConfidenceDots band={band} />
         </div>
       </div>
-      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">{triage.category}</p>
-      {phrase.note && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 leading-snug">{phrase.note}</p>}
+      {phrase.note && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 leading-snug">{phrase.note}</p>}
       {emergency && (
-        <p className="text-red-700 dark:text-red-400 text-xs font-bold mt-2">🚨 Seek care immediately at the nearest facility.</p>
+        <p className="text-red-700 dark:text-red-400 text-xs font-bold mt-1.5">🚨 Seek care immediately at the nearest facility.</p>
       )}
     </div>
   )

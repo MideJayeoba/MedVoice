@@ -45,27 +45,38 @@ def preload_models() -> None:
 def triage_for_conversation(
     query: str, history: list[dict] | None, force: bool = False
 ) -> dict | None:
-    """Predict triage from ALL patient text in this conversation.
+    """Predict triage from the CURRENT message only.
 
-    Runs on every turn and re-checks the whole conversation, so the
-    prediction keeps updating as new symptoms are mentioned. It stays quiet
-    on non-health chat so a greeting never produces a wrong prediction that
-    would pollute the LLM's reply.
+    Whole-conversation prediction proved less accurate — mixing several
+    complaints (or small talk) into one string blurs the signal — so each
+    message gets its own prediction. Non-health messages stay quiet so a
+    greeting never produces a wrong prediction.
 
     - force=True: predict regardless of the signal gate (the manual
-      "Predict now" button). predict_triage still rejects truly off-topic text.
-    - Emergencies (red-flag phrases) surface immediately, on any turn.
-    - Otherwise predict as soon as the conversation carries medical signal
-      (one clear symptom word is enough).
+      "Predict now" button). Falls back to the most recent patient message
+      when the current text is empty.
+    - Emergencies (red-flag phrases) always predict immediately.
     """
-    parts = [h["transcript"] for h in (history or []) if h.get("transcript")]
-    if query:
-        parts.append(query)
-    combined = " . ".join(parts)
+    text = (query or "").strip()
+    if not text and force:
+        for h in reversed(history or []):
+            if h.get("transcript"):
+                text = h["transcript"]
+                break
+    if not text:
+        return None
 
-    if force or has_emergency_signal(query) or has_medical_signal(combined):
-        return predict_triage(combined)
+    if force or has_emergency_signal(text) or has_medical_signal(text):
+        return predict_triage(text)
 
+    return None
+
+
+def _hint_for_llm(triage: dict | None) -> dict | None:
+    """Only Emergency/High predictions influence the reply; Moderate/Low
+    are display-only so the triage never distorts normal guidance."""
+    if triage and triage.get("priority") in ("Emergency", "High"):
+        return triage
     return None
 
 
@@ -96,7 +107,7 @@ def run_consult_text(
 ) -> tuple[str, dict | None]:
     """Text-only pipeline: triage → LLM. Returns (guidance, triage)."""
     triage = triage_for_conversation(query, history)
-    guidance = generate_guidance(query, history=history, triage=triage, user_name=user_name)
+    guidance = generate_guidance(query, history=history, triage=_hint_for_llm(triage), user_name=user_name)
     guidance = _apply_emergency_safety(guidance, triage)
     return guidance, triage
 
@@ -111,7 +122,7 @@ def run_voice_consult(
     """Full pipeline: transcribe → triage → LLM reasoning → TTS."""
     transcript = transcribe_audio(audio_bytes, content_type)
     triage = triage_for_conversation(transcript, history)
-    guidance = generate_guidance(transcript, history=history, triage=triage, user_name=user_name)
+    guidance = generate_guidance(transcript, history=history, triage=_hint_for_llm(triage), user_name=user_name)
     guidance = _apply_emergency_safety(guidance, triage)
     wav = synthesize_speech(guidance, voice=voice)
 
