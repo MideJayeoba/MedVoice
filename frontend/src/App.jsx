@@ -235,6 +235,7 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [predicting, setPredicting] = useState(false)
   const [predictMsg, setPredictMsg] = useState('')   // transient note when nothing predicted
+  const [triagePopup, setTriagePopup] = useState(null) // triage shown in the modal
   const bottomRef   = useRef(null)
   const recorderRef = useRef(null)
   const chunksRef   = useRef([])
@@ -298,7 +299,7 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
       const { blob: audio, transcript: t, guidance: g, escalate: e, triage: tr } =
         await consultAudio(await blobToWav(blob), cid)
       setTurns(prev => [...prev, { id: Date.now(), transcript: t, guidance: g, escalate: e, triage: tr, created_at: new Date().toISOString() }])
-      if (tr) setTriage(tr)
+      if (tr) { setTriage(tr); setTriagePopup(tr) }
       onRefresh()
       await playResp(audio)
     } catch {
@@ -321,7 +322,7 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
       setTurns(prev => prev.map(t => t.id === pendingId
         ? { ...t, guidance: res.reply, escalate: res.escalate, triage: res.triage, pending: false }
         : t))
-      if (res.triage) setTriage(res.triage)
+      if (res.triage) { setTriage(res.triage); setTriagePopup(res.triage) }
       onRefresh()
     } catch {
       setTurns(prev => prev.map(t => t.id === pendingId ? { ...t, guidance: ERR, pending: false } : t))
@@ -398,7 +399,7 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
     user, state, view, setView, turns, convos, convId, triage, resuming,
     chatText, setChatText, chatBusy, sendChat, readAloud, readingId,
     micHandler, resume, newConvo, bottomRef,
-    predictNow, predicting, predictMsg,
+    predictNow, predicting, predictMsg, setTriagePopup,
   }
 
   return (
@@ -532,6 +533,27 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
           </div>
         )}
 
+        {/* Triage popup — opens when a new prediction arrives, or via the
+            "View analysis" button on any past reply */}
+        {triagePopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            role="dialog" aria-modal="true" aria-label="Health analysis">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+              onClick={() => setTriagePopup(null)} />
+            <div className="relative w-full max-w-sm">
+              <TriageCard triage={triagePopup} floating />
+              <button onClick={() => setTriagePopup(null)} aria-label="Close analysis"
+                className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-emerald-900/10 dark:border-slate-600 shadow-lg text-slate-500 dark:text-slate-300 font-bold flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                ✕
+              </button>
+              <button onClick={() => setTriagePopup(null)}
+                className="mt-3 w-full py-3 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold shadow-lg shadow-emerald-700/25 transition-colors">
+                Okay, got it
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Mobile bottom nav (Stitch: chat_interface) ── */}
         <nav className="lg:hidden shrink-0 bg-white dark:bg-slate-900 border-t border-emerald-900/10 dark:border-slate-800 px-6 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 flex items-center justify-around">
           {[
@@ -645,7 +667,7 @@ function ListenView({ state, micHandler, triage, chatText, setChatText, chatBusy
 }
 
 // ─── Chat view (Stitch: chat_interface) ───────────────────────
-function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud, readingId, bottomRef, newConvo, convId, triage, setView, predictNow, predicting, predictMsg }) {
+function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud, readingId, bottomRef, newConvo, convId, triage, setView, predictNow, predicting, predictMsg, setTriagePopup }) {
   return (
     <div className="flex-1 flex flex-col min-h-0 w-full max-w-3xl mx-auto">
       {/* Chat header: back-to-voice + predict + new conversation */}
@@ -703,7 +725,13 @@ function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud,
                           {[0, 1, 2].map(i => <span key={i} className="w-2 h-2 rounded-full bg-emerald-600/50 wave-bar" style={{ animationDelay: `${i * 0.15}s` }} />)}
                         </span>
                       : <p className="text-[15px] text-slate-800 dark:text-slate-200 leading-relaxed">{turn.guidance || '…'}</p>}
-                    {turn.triage && !turn.pending && <TurnTriage triage={turn.triage} />}
+                    {turn.triage && !turn.pending && (
+                      <button onClick={() => setTriagePopup(turn.triage)}
+                        className="mt-2.5 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-700/10 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-700/20 dark:hover:bg-emerald-500/25 transition-colors">
+                        🩺 View analysis
+                        {turn.triage.priority === 'Emergency' && <span className="w-2 h-2 rounded-full bg-red-500 mic-listening" />}
+                      </button>
+                    )}
                     {turn.escalate && (
                       <div className="mt-3 flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-2xl px-3.5 py-2.5">
                         <span className="shrink-0">🚨</span>
@@ -913,38 +941,6 @@ function TriageChipsRow({ triage }) {
   )
 }
 
-// Per-message triage card — shown inside the assistant bubble for the
-// specific message that produced this prediction.
-function TurnTriage({ triage }) {
-  const band = triage.confidence_band || 'low'
-  const phrase = BAND_PHRASE[band]
-  const emergency = triage.priority === 'Emergency'
-  return (
-    <div className={`mt-3 rounded-2xl border px-3.5 py-2.5 ${
-      emergency
-        ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50'
-        : 'bg-emerald-700/5 dark:bg-emerald-500/10 border-emerald-900/10 dark:border-slate-600'
-    }`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.12em]">🩺 {phrase.prefix}</p>
-          <p className="text-sm font-extrabold text-emerald-800 dark:text-emerald-400 truncate">
-            {band !== 'high' ? 'Possibly ' : ''}{triage.department}
-          </p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">{triage.category}</p>
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <PriorityPill priority={triage.priority} />
-          <ConfidenceDots band={band} />
-        </div>
-      </div>
-      {phrase.note && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 leading-snug">{phrase.note}</p>}
-      {emergency && (
-        <p className="text-red-700 dark:text-red-400 text-xs font-bold mt-1.5">🚨 Seek care immediately at the nearest facility.</p>
-      )}
-    </div>
-  )
-}
 
 // ─── Shared UI ────────────────────────────────────────────────
 function Logo({ compact }) {
