@@ -1,17 +1,24 @@
-"""Triage prediction — SVM models for department, disease category, priority.
+"""Triage prediction — category + priority models, department via lookup.
 
-The bundle at models/triage_models.joblib holds three sklearn pipelines
-(TfidfVectorizer + LinearSVC) trained on patient complaint text.
+v2 architecture (see scripts/train_triage_v2.py and compare_models2.py):
+  category : LinearSVC over 68 fine-grained complaint categories (88% test)
+  priority : LinearSVC over Emergency/High/Moderate/Low
+  department: NOT a model — data/category_to_department.json maps each
+              category to the specialist who handles it.
+
+Legacy v1 bundles (category/department/priority models) are still loadable
+as a fallback so a deploy without the v2 file keeps working.
 
 The pickled vectorizers reference `clean_medical_text` from `__main__`
 (they were trained in a script), so we must inject that function into
 `__main__` before joblib.load can unpickle them.
 
-Loading takes ~100 s, so it happens in a background thread at startup.
-Until it finishes, predict_triage() returns None and the app works
-without triage — never block a consultation on model load.
+Loading happens in a background thread at startup. Until it finishes,
+predict_triage() returns None and the app works without triage — never
+block a consultation on model load.
 """
 
+import json
 import logging
 import re
 import sys
@@ -22,12 +29,32 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-_MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
-# Prefer the compact retrained bundle (81 MB, loads in seconds);
-# fall back to the original 2.5 GB bundle if it's not there.
-_SMALL = _MODELS_DIR / "triage_models_small.joblib"
-_FULL = _MODELS_DIR / "triage_models.joblib"
-MODEL_PATH = _SMALL if _SMALL.exists() else _FULL
+_ROOT = Path(__file__).resolve().parents[2]
+_MODELS_DIR = _ROOT / "models"
+# Newest first: v2 (category68 + priority), then legacy fallbacks.
+_CANDIDATES = [
+    _MODELS_DIR / "triage_models_v2.joblib",
+    _MODELS_DIR / "triage_models_small.joblib",
+    _MODELS_DIR / "triage_models.joblib",
+]
+MODEL_PATH = next((p for p in _CANDIDATES if p.exists()), _CANDIDATES[0])
+
+# category -> specialist/department lookup (v2)
+_DEPT_MAP_PATH = _ROOT / "data" / "category_to_department.json"
+try:
+    _DEPT_MAP: dict = json.loads(_DEPT_MAP_PATH.read_text(encoding="utf-8"))
+    _DEPT_MAP_NORM = {k.strip().lower(): v for k, v in _DEPT_MAP.items()}
+except Exception:  # file missing — department falls back to General Physician
+    _DEPT_MAP, _DEPT_MAP_NORM = {}, {}
+
+
+def department_for_category(category: str) -> str:
+    """Look up the specialist for a predicted category (case-insensitive)."""
+    return (
+        _DEPT_MAP.get(category)
+        or _DEPT_MAP_NORM.get((category or "").strip().lower())
+        or "General Physicians"
+    )
 
 _models: dict | None = None
 _load_lock = threading.Lock()
@@ -233,11 +260,16 @@ def predict_triage(text: str) -> dict | None:
     if _models is None or not text or not text.strip():
         return None
 
+    is_v2 = _models.get("version", 1) >= 2
     cleaned = clean_medical_text(text)
     try:
         category, cat_conf, cat_margin, cat_top = _predict_one(_models["category"], cleaned)
-        department, dept_conf, dept_margin, _ = _predict_one(_models["department"], cleaned)
         priority, prio_conf, prio_margin, _ = _predict_one(_models["priority"], cleaned)
+        if is_v2:
+            # department is a deterministic lookup from the category
+            department, dept_conf, dept_margin = department_for_category(category), cat_conf, cat_margin
+        else:
+            department, dept_conf, dept_margin, _ = _predict_one(_models["department"], cleaned)
     except Exception as exc:
         logger.exception("Triage prediction failed: %s", exc)
         return None
