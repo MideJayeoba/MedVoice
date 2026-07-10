@@ -62,6 +62,8 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
   const [firstName, setFirstName]   = useState('')
   const [middleName, setMiddleName] = useState('')
   const [lastName, setLastName]     = useState('')
+  const [birthdate, setBirthdate]   = useState('')
+  const [gender, setGender]         = useState('')
   const [error, setError]       = useState('')
   const [busy, setBusy]         = useState(false)
   const googleBtnRef = useRef(null)
@@ -69,7 +71,7 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
   async function submit(e) {
     e.preventDefault(); setError(''); setBusy(true)
     try {
-      if (mode === 'register') await registerUser(username, email, password, firstName, middleName, lastName)
+      if (mode === 'register') await registerUser(username, email, password, firstName, middleName, lastName, birthdate, gender)
       await loginUser(mode === 'register' ? email : username, password)
       onLogin(await getUserProfile())
     } catch (err) { setError(err.message || 'Something went wrong') }
@@ -161,6 +163,21 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
                 <AuthInput label="Middle Name (optional)" icon="🪪" type="text" autoComplete="additional-name"
                   maxLength={100} placeholder="Amara"
                   value={middleName} onChange={e => setMiddleName(e.target.value)} />
+                <div className="grid grid-cols-2 gap-3">
+                  <AuthInput label="Date of Birth" icon="🎂" type="date" autoComplete="bday" required
+                    max={new Date().toISOString().slice(0, 10)}
+                    value={birthdate} onChange={e => setBirthdate(e.target.value)} />
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Gender</label>
+                    <select required value={gender} onChange={e => setGender(e.target.value)}
+                      className="w-full bg-emerald-900/5 dark:bg-slate-800 border border-transparent rounded-2xl px-4 py-3.5 text-slate-900 dark:text-white text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 transition-all appearance-none">
+                      <option value="" disabled>Select…</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
                 <AuthInput label="Email Address" icon="✉️" type="email" autoComplete="email" required
                   placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
               </>
@@ -299,7 +316,10 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
       const { blob: audio, transcript: t, guidance: g, escalate: e, triage: tr } =
         await consultAudio(await blobToWav(blob), cid)
       setTurns(prev => [...prev, { id: Date.now(), transcript: t, guidance: g, escalate: e, triage: tr, created_at: new Date().toISOString() }])
-      if (tr) { setTriage(tr); setTriagePopup(tr) }
+      // Latest analysis follows the CURRENT message — clears when the new
+      // message produced no prediction (e.g. topic changed / small talk).
+      setTriage(tr || null)
+      if (tr) setTriagePopup(tr)
       onRefresh()
       await playResp(audio)
     } catch {
@@ -322,7 +342,8 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
       setTurns(prev => prev.map(t => t.id === pendingId
         ? { ...t, guidance: res.reply, escalate: res.escalate, triage: res.triage, pending: false }
         : t))
-      if (res.triage) { setTriage(res.triage); setTriagePopup(res.triage) }
+      setTriage(res.triage || null)  // clear stale analysis on topic change
+      if (res.triage) setTriagePopup(res.triage)
       onRefresh()
     } catch {
       setTurns(prev => prev.map(t => t.id === pendingId ? { ...t, guidance: ERR, pending: false } : t))

@@ -66,6 +66,8 @@ def register(body: UserRegister) -> dict:
             first_name=body.first_name.strip(),
             middle_name=body.middle_name.strip() if body.middle_name else None,
             last_name=body.last_name.strip(),
+            birthdate=body.birthdate,
+            gender=body.gender,
         )
         logger.info("New user registered: %s <%s>", body.username, body.email)
         return {"status": "registered", "username": body.username}
@@ -212,6 +214,8 @@ def me(current_user: dict = Depends(get_current_user)) -> UserOut:
         first_name=current_user.get("first_name"),
         middle_name=current_user.get("middle_name"),
         last_name=current_user.get("last_name"),
+        birthdate=current_user.get("birthdate"),
+        gender=current_user.get("gender"),
         created_at=current_user["created_at"],
         tts_voice=current_user.get("tts_voice", "Ezinne"),
         history=history,

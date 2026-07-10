@@ -51,7 +51,7 @@ async function apiFetch(path, options = {}) {
 // Auth endpoints
 // ---------------------------------------------------------------------------
 
-export async function registerUser(username, email, password, firstName, middleName, lastName) {
+export async function registerUser(username, email, password, firstName, middleName, lastName, birthdate, gender) {
   const res = await apiFetch('/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -60,6 +60,8 @@ export async function registerUser(username, email, password, firstName, middleN
       first_name: firstName,
       middle_name: middleName || null,
       last_name: lastName,
+      birthdate,
+      gender,
     }),
   })
   if (!res.ok) {

@@ -165,6 +165,8 @@ def init_db() -> None:
                     ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name  VARCHAR(100);
                     ALTER TABLE users ADD COLUMN IF NOT EXISTS middle_name VARCHAR(100);
                     ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name   VARCHAR(100);
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS birthdate   VARCHAR(10);
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS gender      VARCHAR(20);
 
                     CREATE TABLE IF NOT EXISTS sessions (
                         token      VARCHAR(255) PRIMARY KEY,
@@ -221,6 +223,8 @@ def init_db() -> None:
                 "ALTER TABLE users ADD COLUMN first_name TEXT",
                 "ALTER TABLE users ADD COLUMN middle_name TEXT",
                 "ALTER TABLE users ADD COLUMN last_name TEXT",
+                "ALTER TABLE users ADD COLUMN birthdate TEXT",
+                "ALTER TABLE users ADD COLUMN gender TEXT",
                 "ALTER TABLE consultations ADD COLUMN conversation_id TEXT",
                 "ALTER TABLE consultations ADD COLUMN triage_category TEXT",
                 "ALTER TABLE consultations ADD COLUMN triage_department TEXT",
@@ -243,14 +247,18 @@ def db_create_user(
     first_name: str | None = None,
     middle_name: str | None = None,
     last_name: str | None = None,
+    birthdate: str | None = None,   # ISO YYYY-MM-DD
+    gender: str | None = None,      # Male | Female | Other
 ) -> int:
     """Insert a new user and return the new row id."""
     with _get_conn() as conn:
         return _insert(
             conn,
             "INSERT INTO users (username, email, password_hash, salt,"
-            " first_name, middle_name, last_name) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (username, email, password_hash, salt, first_name, middle_name, last_name),
+            " first_name, middle_name, last_name, birthdate, gender)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (username, email, password_hash, salt, first_name, middle_name,
+             last_name, birthdate, gender),
         )
 
 

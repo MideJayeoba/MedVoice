@@ -1,5 +1,7 @@
 """Pydantic schemas for authentication endpoints."""
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -10,6 +12,8 @@ class UserRegister(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     middle_name: str | None = Field(None, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
+    birthdate: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="ISO date YYYY-MM-DD")
+    gender: Literal["Male", "Female", "Other"]
 
 
 class UserLogin(BaseModel):
@@ -54,6 +58,8 @@ class UserOut(BaseModel):
     first_name: str | None = None
     middle_name: str | None = None
     last_name: str | None = None
+    birthdate: str | None = None
+    gender: str | None = None
     tts_voice: str = "Ezinne"
     created_at: str
     history: list[ConsultHistoryItem] = []
