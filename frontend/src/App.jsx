@@ -3,7 +3,7 @@ import './index.css'
 import {
   consultAudio, consultText, getConversationTurns, getUserProfile,
   loginUser, loginWithGoogle, logoutUser, registerUser, speakText, predictTriageNow,
-  getStoredToken, updateUserVoice,
+  getStoredToken, updateUserVoice, exportMyData, deleteMyAccount, deleteConversation,
 } from './api'
 import { playWavBlob, stopPlayback, unlockAudioOutput } from './audioPlayer'
 import { blobToWav } from './audioUtils'
@@ -64,6 +64,7 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
   const [lastName, setLastName]     = useState('')
   const [birthdate, setBirthdate]   = useState('')
   const [gender, setGender]         = useState('')
+  const [consent, setConsent]       = useState(false)
   const [error, setError]       = useState('')
   const [busy, setBusy]         = useState(false)
   const googleBtnRef = useRef(null)
@@ -174,12 +175,20 @@ function AuthScreen({ onLogin, dark, onToggleTheme }) {
                       <option value="" disabled>Select…</option>
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
-                      <option value="Other">Other</option>
                     </select>
                   </div>
                 </div>
                 <AuthInput label="Email Address" icon="✉️" type="email" autoComplete="email" required
                   placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input type="checkbox" required checked={consent} onChange={e => setConsent(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-emerald-700 shrink-0" />
+                  <span className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
+                    I consent to VoiceMedAI storing my health conversations to provide guidance.
+                    I understand this is <b>not a medical diagnosis</b>, and that I can download
+                    or permanently delete my data anytime from Settings.
+                  </span>
+                </label>
               </>
             )}
             <AuthInput label="Password" icon="🔒" type="password" required minLength={6}
@@ -286,6 +295,42 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
   async function changeVoice(v) {
     if (v === voice) return
     try { await updateUserVoice(v); setVoice(v); user.tts_voice = v } catch {}
+  }
+
+  // NDPR right of access — download everything as a JSON file
+  async function downloadMyData() {
+    try {
+      const data = await exportMyData()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `voicemedai-data-${user.username}.json`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch { alert('Could not export your data right now — please try again.') }
+  }
+
+  // NDPR right to erasure — double confirmation, then gone for good
+  async function confirmDelete() {
+    if (!window.confirm('Permanently delete your account and ALL your health conversations? This cannot be undone.')) return
+    if (!window.confirm('Are you absolutely sure? Everything will be erased immediately.')) return
+    try {
+      await deleteMyAccount()
+      sessionStorage.removeItem(CONV_KEY)
+      window.location.reload()
+    } catch { alert('Deletion failed — please try again.') }
+  }
+
+  // Delete a single conversation
+  async function removeConvo(cid) {
+    if (!window.confirm('Delete this consultation and all its messages? This cannot be undone.')) return
+    try {
+      await deleteConversation(cid)
+      setConvos(prev => prev.filter(c => c.conversation_id !== cid))
+      // If we just deleted the active conversation, reset to a fresh state
+      if (convId === cid) { setConvId(null); setTurns([]); setTriage(null); sessionStorage.removeItem(CONV_KEY) }
+      onRefresh()
+    } catch { alert('Could not delete conversation — please try again.') }
   }
 
   const stopStream = useCallback(() => {
@@ -419,7 +464,7 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
   const shared = {
     user, state, view, setView, turns, convos, convId, triage, resuming,
     chatText, setChatText, chatBusy, sendChat, readAloud, readingId,
-    micHandler, resume, newConvo, bottomRef,
+    micHandler, resume, newConvo, removeConvo, bottomRef,
     predictNow, predicting, predictMsg, setTriagePopup,
   }
 
@@ -440,7 +485,7 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
                 {convos.map(c => {
                   const active = convId === c.conversation_id
                   return (
-                    <li key={c.conversation_id}>
+                    <li key={c.conversation_id} className="group relative">
                       <button onClick={() => !active && resume(c.conversation_id)} disabled={resuming}
                         className={`w-full text-left rounded-2xl px-4 py-3 transition-colors ${
                           active
@@ -457,6 +502,11 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
                         {c.department && (
                           <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 truncate mt-0.5">{c.department}</p>
                         )}
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); removeConvo(c.conversation_id) }}
+                        aria-label="Delete conversation" title="Delete conversation"
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-all text-xs">
+                        🗑️
                       </button>
                     </li>
                   )
@@ -528,8 +578,20 @@ function Shell({ user, onLogout, onRefresh, dark, onToggleTheme }) {
                     ))}
                   </div>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mb-3 px-1">Signed in as <b className="text-slate-600 dark:text-slate-300">@{user.username}</b></p>
+
+                  {/* NDPR data rights */}
+                  <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Your data</p>
+                  <button onClick={downloadMyData}
+                    className="w-full py-2.5 mb-2 rounded-full border border-emerald-900/10 dark:border-slate-700 text-emerald-700 dark:text-emerald-400 text-sm font-bold hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors">
+                    ⬇️ Download my data
+                  </button>
+                  <button onClick={confirmDelete}
+                    className="w-full py-2.5 mb-3 rounded-full border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    🗑️ Delete account &amp; data
+                  </button>
+
                   <button onClick={onLogout}
-                    className="w-full py-2.5 rounded-full border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-sm font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    className="w-full py-2.5 rounded-full border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     Sign out
                   </button>
                 </div>
@@ -682,13 +744,17 @@ function ListenView({ state, micHandler, triage, chatText, setChatText, chatBusy
             {turns.length} exchange{turns.length !== 1 ? 's' : ''} in this consultation — see Chat tab
           </p>
         )}
+        <p className="text-center text-[11px] text-slate-400 dark:text-slate-600 leading-snug px-4">
+          Priscilla offers general first-aid guidance, not a medical diagnosis.
+          For emergencies, go to the nearest health facility immediately.
+        </p>
       </div>
     </div>
   )
 }
 
 // ─── Chat view (Stitch: chat_interface) ───────────────────────
-function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud, readingId, bottomRef, newConvo, convId, triage, setView, predictNow, predicting, predictMsg, setTriagePopup }) {
+function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud, readingId, bottomRef, newConvo, convId, triage, setView, predictNow, predicting, predictMsg, setTriagePopup, user }) {
   return (
     <div className="flex-1 flex flex-col min-h-0 w-full max-w-3xl mx-auto">
       {/* Chat header: back-to-voice + predict + new conversation */}
@@ -745,14 +811,24 @@ function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud,
                       ? <span className="inline-flex gap-1 py-1">
                           {[0, 1, 2].map(i => <span key={i} className="w-2 h-2 rounded-full bg-emerald-600/50 wave-bar" style={{ animationDelay: `${i * 0.15}s` }} />)}
                         </span>
-                      : <p className="text-[15px] text-slate-800 dark:text-slate-200 leading-relaxed">{turn.guidance || '…'}</p>}
-                    {turn.triage && !turn.pending && (
-                      <button onClick={() => setTriagePopup(turn.triage)}
-                        className="mt-2.5 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-700/10 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-700/20 dark:hover:bg-emerald-500/25 transition-colors">
-                        🩺 View analysis
-                        {turn.triage.priority === 'Emergency' && <span className="w-2 h-2 rounded-full bg-red-500 mic-listening" />}
-                      </button>
-                    )}
+                      : (
+                        <>
+                          {turn.triage && (
+                            <div className="mb-3 p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
+                              <p className="text-[13px] font-extrabold text-emerald-800 dark:text-emerald-400 mb-1.5">
+                                {user?.first_name || user?.username || 'User'}, these symptoms look related to that of {turn.triage.category}.
+                              </p>
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <PriorityPill priority={turn.triage.priority} />
+                              </div>
+                              <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                You might have to see a <span className="font-bold text-emerald-700 dark:text-emerald-500">{turn.triage.department}</span>.
+                              </p>
+                            </div>
+                          )}
+                          <p className="text-[15px] text-slate-800 dark:text-slate-200 leading-relaxed">{turn.guidance || '…'}</p>
+                        </>
+                      )}
                     {turn.escalate && (
                       <div className="mt-3 flex items-start gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 rounded-2xl px-3.5 py-2.5">
                         <span className="shrink-0">🚨</span>
@@ -803,7 +879,7 @@ function ChatView({ turns, chatText, setChatText, chatBusy, sendChat, readAloud,
 }
 
 // ─── History view (Stitch: history) — grouped by date ────────
-function HistoryView({ convos, convId, resume, resuming, newConvo, setView }) {
+function HistoryView({ convos, convId, resume, resuming, newConvo, setView, removeConvo }) {
   const groups = groupByDate(convos)
   return (
     <div className="flex-1 min-h-0 overflow-y-auto px-4 py-5 w-full max-w-3xl mx-auto">
@@ -851,18 +927,24 @@ function HistoryView({ convos, convId, resume, resuming, newConvo, setView }) {
                       <p className="text-[15px] text-slate-700 dark:text-slate-300 leading-snug mb-4 line-clamp-2">
                         “{c.first_transcript?.slice(0, 110) || 'Consultation'}”
                       </p>
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
                           {c.turn_count} exchange{c.turn_count !== 1 ? 's' : ''}
                         </span>
-                        {active
-                          ? <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 px-3 py-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 mic-idle" /> Active now
-                            </span>
-                          : <button disabled={resuming} onClick={() => resume(c.conversation_id)}
-                              className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-md shadow-emerald-700/20 disabled:opacity-40 transition-colors">
-                              {resuming ? '…' : <>▶ Resume</>}
-                            </button>}
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => removeConvo(c.conversation_id)}
+                            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-full border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                            🗑️ Delete
+                          </button>
+                          {active
+                            ? <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 px-3 py-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 mic-idle" /> Active now
+                              </span>
+                            : <button disabled={resuming} onClick={() => resume(c.conversation_id)}
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-md shadow-emerald-700/20 disabled:opacity-40 transition-colors">
+                                {resuming ? '…' : <>▶ Resume</>}
+                              </button>}
+                        </div>
                       </div>
                     </li>
                   )

@@ -66,7 +66,7 @@ async def transcribe(
         if not audio_bytes:
             raise HTTPException(status_code=400, detail="Empty audio file")
         transcript = transcribe_audio(audio_bytes, audio.content_type)
-        logger.info("Transcribed: %s", transcript[:80])
+        logger.info("Transcribed %d chars", len(transcript))  # content redacted (health data)
         return TranscribeResponse(transcript=transcript)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -86,7 +86,7 @@ def reason(
 ) -> ReasonResponse:
     try:
         guidance = generate_guidance(body.query)
-        logger.info("Reasoned: %s", guidance[:120])
+        logger.info("Reasoned %d chars", len(guidance))  # content redacted (health data)
 
         if current_user:
             db_save_consultation(current_user["id"], body.query, guidance, False)

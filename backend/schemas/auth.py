@@ -13,7 +13,7 @@ class UserRegister(BaseModel):
     middle_name: str | None = Field(None, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     birthdate: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="ISO date YYYY-MM-DD")
-    gender: Literal["Male", "Female", "Other"]
+    gender: Literal["Male", "Female"]
 
 
 class UserLogin(BaseModel):

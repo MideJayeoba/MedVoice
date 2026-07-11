@@ -223,9 +223,31 @@ export async function predictTriageNow(conversationId = null, message = null) {
   return res.json()
 }
 
+/** NDPR right of access — download everything we hold about the user. */
+export async function exportMyData() {
+  const res = await apiFetch('/auth/export')
+  if (!res.ok) throw new Error('Export failed')
+  return res.json()
+}
+
+/** NDPR right to erasure — permanently delete account + all data. */
+export async function deleteMyAccount() {
+  const res = await apiFetch('/auth/me', { method: 'DELETE' })
+  if (!res.ok) throw new Error('Account deletion failed')
+  setStoredToken(null)
+  return res.json()
+}
+
 export async function getConversationTurns(conversationId) {
   const res = await apiFetch(`/auth/conversations/${conversationId}`)
   if (!res.ok) throw new Error('Failed to load conversation')
+  return res.json()
+}
+
+/** Delete a conversation and all its turns. */
+export async function deleteConversation(conversationId) {
+  const res = await apiFetch(`/auth/conversations/${conversationId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('Failed to delete conversation')
   return res.json()
 }
 

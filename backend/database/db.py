@@ -262,6 +262,17 @@ def db_create_user(
         )
 
 
+def db_delete_user(user_id: int) -> None:
+    """Erase a user; sessions and consultations cascade via FK ON DELETE."""
+    with _get_conn() as conn:
+        # SQLite needs both explicit deletes if FKs were created without
+        # cascade in old databases; Postgres cascades but the extra deletes
+        # are harmless no-ops there.
+        _execute(conn, "DELETE FROM consultations WHERE user_id = ?", (user_id,))
+        _execute(conn, "DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        _execute(conn, "DELETE FROM users WHERE id = ?", (user_id,))
+
+
 def db_update_user_voice(user_id: int, voice: str) -> None:
     """Update user's preferred TTS voice choice."""
     with _get_conn() as conn:
@@ -380,6 +391,17 @@ def db_get_conversation(conversation_id: str) -> list[dict]:
         )
         rows = cur.fetchall()
         return [_row(r) for r in rows]
+
+
+def db_delete_conversation(conversation_id: str, user_id: int) -> int:
+    """Delete all turns in a conversation owned by user_id. Returns rows deleted."""
+    with _get_conn() as conn:
+        cur = _execute(
+            conn,
+            "DELETE FROM consultations WHERE conversation_id = ? AND user_id = ?",
+            (conversation_id, user_id),
+        )
+        return cur.rowcount
 
 
 _PRIORITY_RANK = {"Emergency": 4, "High": 3, "Moderate": 2, "Low": 1}

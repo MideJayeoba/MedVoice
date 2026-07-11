@@ -146,7 +146,7 @@ def transcribe_audio(audio_bytes: bytes, content_type: str | None = None) -> str
         if groq_key and not _groq_exhausted:
             try:
                 text = _transcribe_groq(wav_bytes, groq_key)
-                logger.info("[Groq ASR] %s", text[:100])
+                logger.info("[Groq ASR] transcribed %d chars", len(text))
                 return _post_process_nigerian(text)
             except _GroqQuotaError as exc:
                 logger.warning("Groq ASR quota/rate-limit hit — switching to local Whisper: %s", exc)
@@ -234,7 +234,7 @@ def _transcribe_whisper(wav_bytes: bytes) -> str:
         raise RuntimeError("No speech detected — please speak louder and try again")
 
     text = _post_process_nigerian(text)
-    logger.info("ASR transcript: %s", text)
+    logger.info("ASR transcribed %d chars", len(text))  # content redacted (health data)
     return text
 
 
@@ -316,5 +316,5 @@ def _demo_transcribe(wav_bytes: bytes) -> str:
         "i dey purge since morning and stool dey rush me",
     ]
     text = samples[(duration_ms // 1000) % len(samples)]
-    logger.warning("DEMO ASR (install openai-whisper for real transcription): %s", text)
+    logger.warning("DEMO ASR (install openai-whisper for real transcription): %d chars", len(text))
     return text

@@ -11,7 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from backend.database.db import (
     db_create_session,
     db_create_user,
+    db_delete_conversation,
     db_delete_session,
+    db_delete_user,
     db_get_conversation,
     db_get_consultations,
     db_get_conversations,
@@ -20,6 +22,7 @@ from backend.database.db import (
     db_update_user_voice,
 )
 from backend.dependencies.auth import get_current_user
+from backend.dependencies.ratelimit import login_limiter, register_limiter
 from backend.schemas.auth import (
     ConsultHistoryItem,
     GoogleLogin,
@@ -46,6 +49,7 @@ router = APIRouter()
     "/register",
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user account",
+    dependencies=[Depends(register_limiter)],
 )
 def register(body: UserRegister) -> dict:
     # Check username and email uniqueness separately for clear error messages
@@ -84,6 +88,7 @@ def register(body: UserRegister) -> dict:
     "/login",
     response_model=TokenResponse,
     summary="Login with username or email + password",
+    dependencies=[Depends(login_limiter)],
 )
 def login(body: UserLogin) -> TokenResponse:
     # Try identifier as email first, then as username
@@ -256,6 +261,55 @@ def get_conversation(
         if row["user_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="Not your conversation")
     return [_history_item(row) for row in rows]
+
+
+@router.get(
+    "/export",
+    summary="Download all personal data (NDPR right of access / portability)",
+)
+def export_my_data(current_user: dict = Depends(get_current_user)) -> dict:
+    """Everything we hold about the user, in portable JSON."""
+    consults = db_get_consultations(current_user["id"])
+    return {
+        "profile": {
+            k: current_user.get(k)
+            for k in ("username", "email", "first_name", "middle_name", "last_name",
+                      "birthdate", "gender", "tts_voice", "created_at")
+        },
+        "consultations": [
+            {k: r.get(k) for k in ("transcript", "guidance", "escalate", "conversation_id",
+                                   "triage_category", "triage_department", "triage_priority",
+                                   "triage_confidence", "created_at")}
+            for r in consults
+        ],
+    }
+
+
+@router.delete(
+    "/me",
+    summary="Permanently delete account and ALL associated data (NDPR right to erasure)",
+)
+def delete_my_account(current_user: dict = Depends(get_current_user)) -> dict:
+    """Deletes the user row; sessions and consultations cascade with it."""
+    db_delete_user(current_user["id"])
+    logger.info("Account deleted (user id %s)", current_user["id"])
+    return {"status": "deleted"}
+
+
+@router.delete(
+    "/conversations/{conversation_id}",
+    summary="Delete a specific conversation and all its turns",
+)
+def delete_conversation(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Erase every turn in a conversation owned by this user."""
+    deleted = db_delete_conversation(conversation_id, current_user["id"])
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    logger.info("User %s deleted conversation %s (%d turns)", current_user["id"], conversation_id, deleted)
+    return {"status": "deleted", "turns_removed": deleted}
 
 
 def _history_item(row: dict) -> ConsultHistoryItem:

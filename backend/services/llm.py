@@ -76,6 +76,10 @@ Style:
 - Keep replies concise for voice, but expand when the topic genuinely needs more explanation.
 - Avoid repetitive disclaimers.
 - End with a gentle next step only when useful.
+
+You MUST output your response as a JSON object containing exactly two keys:
+1. "enriched_symptoms": A brief medical expansion of the user's complaint (standard clinical terms, possible related symptoms) to help our internal triage classifier understand the condition better.
+2. "guidance": Your spoken response (the 2-4 short sentences of practical advice).
 """)
 
 
@@ -161,8 +165,9 @@ def _build_messages(query: str, history: list[dict] | None, triage: dict | None 
 
 
 def _call_groq(query: str, history: list[dict] | None = None, triage: dict | None = None,
-               user_name: str | None = None) -> str | None:
-    """Call Groq API (Llama 3.1 8B). Returns text or None on failure."""
+               user_name: str | None = None) -> tuple[str | None, str | None]:
+    """Call Groq API (Llama 3.1 8B). Returns (text, enriched_symptoms) or (None, None)."""
+    import json
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -173,32 +178,39 @@ def _call_groq(query: str, history: list[dict] | None = None, triage: dict | Non
         "messages": _build_messages(query, history, triage, user_name),
         "temperature": LLM_TEMPERATURE,
         "max_tokens": LLM_MAX_TOKENS,
+        "response_format": {"type": "json_object"},
     }
     try:
-        logger.info("Calling Groq API for: %s", query[:80])
+        logger.info("Calling Groq API (%d char query)", len(query))
         r = httpx.post(url, headers=headers, json=payload, timeout=15.0)
         if r.status_code == 200:
             text = r.json()["choices"][0]["message"]["content"].strip()
-            if text:
-                logger.info("Groq inference OK (%d chars)", len(text))
-                return text
+            data = json.loads(text)
+            guidance = data.get("guidance", "").strip()
+            enriched = data.get("enriched_symptoms", "").strip()
+            if guidance:
+                logger.info("Groq inference OK (%d chars)", len(guidance))
+                return guidance, enriched
         else:
             logger.error("Groq API %s: %s", r.status_code, r.text[:300])
     except Exception as exc:
         logger.exception("Groq call failed: %s", exc)
-    return None
+    return None, None
+
 
 
 def _call_gemini(query: str, history: list[dict] | None = None, triage: dict | None = None,
-                 user_name: str | None = None) -> str | None:
-    """Call Gemini 2.5 Flash Lite. Returns text or None on failure."""
+                 user_name: str | None = None) -> tuple[str | None, str | None]:
+    """Call Gemini 2.5 Flash Lite. Returns (text, enriched_symptoms) or (None, None)."""
+    import json
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
     contents = []
     for item in (history or [])[-5:]:
         if item.get("transcript"):
             contents.append({"role": "user", "parts": [{"text": item["transcript"]}]})
         if item.get("guidance"):
-            contents.append({"role": "model", "parts": [{"text": item["guidance"]}]})
+            # Mock the JSON history format expected
+            contents.append({"role": "model", "parts": [{"text": json.dumps({"guidance": item["guidance"], "enriched_symptoms": ""})}]})
     contents.append({"role": "user", "parts": [{"text": query}]})
     payload = {
         "contents": contents,
@@ -206,21 +218,25 @@ def _call_gemini(query: str, history: list[dict] | None = None, triage: dict | N
         "generationConfig": {
             "temperature": LLM_TEMPERATURE,
             "maxOutputTokens": LLM_MAX_TOKENS,
+            "responseMimeType": "application/json",
         },
     }
     try:
-        logger.info("Calling Gemini API for: %s", query[:80])
+        logger.info("Calling Gemini API (%d char query)", len(query))
         r = httpx.post(url, json=payload, timeout=15.0)
         if r.status_code == 200:
             text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            if text:
-                logger.info("Gemini inference OK (%d chars)", len(text))
-                return text
+            data = json.loads(text)
+            guidance = data.get("guidance", "").strip()
+            enriched = data.get("enriched_symptoms", "").strip()
+            if guidance:
+                logger.info("Gemini inference OK (%d chars)", len(guidance))
+                return guidance, enriched
         else:
             logger.error("Gemini API %s: %s", r.status_code, r.text[:300])
     except Exception as exc:
         logger.exception("Gemini call failed: %s", exc)
-    return None
+    return None, None
 
 
 FALLBACK = (
@@ -231,20 +247,20 @@ FALLBACK = (
 
 
 def generate_guidance(query: str, history: list[dict] | None = None, triage: dict | None = None,
-                      user_name: str | None = None) -> str:
-    """Send transcript to cloud LLM and return the response text."""
+                      user_name: str | None = None) -> tuple[str, str]:
+    """Send transcript to cloud LLM. Returns (guidance, enriched_symptoms)."""
     if GROQ_API_KEY:
-        result = _call_groq(query, history, triage, user_name)
-        if result:
-            return result
+        guidance, enriched = _call_groq(query, history, triage, user_name)
+        if guidance:
+            return guidance, enriched or ""
 
     if GEMINI_API_KEY:
-        result = _call_gemini(query, history, triage, user_name)
-        if result:
-            return result
+        guidance, enriched = _call_gemini(query, history, triage, user_name)
+        if guidance:
+            return guidance, enriched or ""
 
     logger.warning("No LLM API key configured or all calls failed — using fallback")
-    return FALLBACK
+    return FALLBACK, ""
 
 
 def get_reasoning_status() -> dict:

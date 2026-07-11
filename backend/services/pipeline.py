@@ -105,9 +105,13 @@ def run_consult_text(
     history: list[dict] | None = None,
     user_name: str | None = None,
 ) -> tuple[str, dict | None]:
-    """Text-only pipeline: triage → LLM. Returns (guidance, triage)."""
-    triage = triage_for_conversation(query, history)
-    guidance = generate_guidance(query, history=history, triage=_hint_for_llm(triage), user_name=user_name)
+    """Text-only pipeline: LLM → triage. Returns (guidance, triage)."""
+    guidance, enriched_symptoms = generate_guidance(query, history=history, triage=None, user_name=user_name)
+    
+    # Combine original query with LLM's medical enrichment for better triage
+    triage_input = f"{query}\n{enriched_symptoms}".strip()
+    triage = triage_for_conversation(triage_input, history)
+    
     guidance = _apply_emergency_safety(guidance, triage)
     return guidance, triage
 
@@ -119,10 +123,15 @@ def run_voice_consult(
     history: list[dict] | None = None,
     user_name: str | None = None,
 ) -> tuple[bytes, dict]:
-    """Full pipeline: transcribe → triage → LLM reasoning → TTS."""
+    """Full pipeline: transcribe → LLM enrichment & reasoning → triage → TTS."""
     transcript = transcribe_audio(audio_bytes, content_type)
-    triage = triage_for_conversation(transcript, history)
-    guidance = generate_guidance(transcript, history=history, triage=_hint_for_llm(triage), user_name=user_name)
+    
+    guidance, enriched_symptoms = generate_guidance(transcript, history=history, triage=None, user_name=user_name)
+    
+    # Combine original transcript with LLM's medical enrichment for better triage
+    triage_input = f"{transcript}\n{enriched_symptoms}".strip()
+    triage = triage_for_conversation(triage_input, history)
+    
     guidance = _apply_emergency_safety(guidance, triage)
     wav = synthesize_speech(guidance, voice=voice)
 
@@ -135,5 +144,9 @@ def run_voice_consult(
         "guidance": guidance,
         "triage": triage,
     }
-    logger.info("Pipeline complete: %s", {k: v for k, v in meta.items() if k != "guidance"})
+    logger.info(
+        "Pipeline complete: transcript=%d chars, guidance=%d chars, escalate=%s, triage=%s",
+        len(transcript), len(guidance), meta["escalate"],
+        (triage or {}).get("priority"),
+    )  # content redacted (health data)
     return wav, meta

@@ -281,7 +281,7 @@ def predict_triage(text: str) -> dict | None:
 
     # Safety net: red-flag keywords force Emergency (escalate-only)
     if priority != "Emergency" and _EMERGENCY_PATTERNS.search(cleaned):
-        logger.warning("Triage escalated to Emergency by red-flag keywords: %s", text[:80])
+        logger.warning("Triage escalated to Emergency by red-flag keywords (%d chars)", len(text))
         priority, prio_conf, prio_margin = "Emergency", 0.9, 2.0
 
     overall = min(cat_conf, dept_conf, prio_conf)
