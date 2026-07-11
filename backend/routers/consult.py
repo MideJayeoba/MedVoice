@@ -26,6 +26,27 @@ from backend.services.tts import synthesize_speech
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+def _profile(current_user: Optional[dict]) -> dict | None:
+    """Patient context for the LLM: first name + age (from birthdate) + gender."""
+    if not current_user:
+        return None
+    age = None
+    bd = current_user.get("birthdate")
+    if bd:
+        try:
+            from datetime import date
+            b = date.fromisoformat(str(bd)[:10])
+            today = date.today()
+            age = today.year - b.year - ((today.month, today.day) < (b.month, b.day))
+        except ValueError:
+            pass
+    return {
+        "name": current_user.get("first_name") or current_user.get("username"),
+        "age": age,
+        "gender": current_user.get("gender"),
+    }
+
+
 _ERROR_VOICE = (
     "Sorry oga, something no work for our side. "
     "Please try again small-small, or talk to the CHEW for help."
@@ -112,8 +133,7 @@ def chat(
 ) -> ChatResponse:
     try:
         history = db_get_conversation(body.conversation_id) if body.conversation_id else []
-        user_name = (current_user.get("first_name") or current_user.get("username")) if current_user else None
-        reply, triage = run_consult_text(body.message, history=history, user_name=user_name)
+        reply, triage = run_consult_text(body.message, history=history, user_name=_profile(current_user))
         escalate = bool(triage and triage.get("priority") == "Emergency")
 
         if current_user:
@@ -181,9 +201,9 @@ async def consult(
         voice = current_user.get("tts_voice", "Ezinne") if current_user else "Ezinne"
         # Use only the current conversation's history so the LLM has coherent context
         history = db_get_conversation(conversation_id) if conversation_id else []
-        user_name = (current_user.get("first_name") or current_user.get("username")) if current_user else None
         audio_bytes, meta = run_voice_consult(
-            audio_bytes, audio.content_type, voice=voice, history=history, user_name=user_name,
+            audio_bytes, audio.content_type, voice=voice, history=history,
+            user_name=_profile(current_user),
         )
 
         if current_user:
