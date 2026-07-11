@@ -187,6 +187,12 @@ def init_db() -> None:
                         triage_confidence REAL,
                         created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     );
+
+                    ALTER TABLE consultations ADD COLUMN IF NOT EXISTS conversation_id   VARCHAR(255);
+                    ALTER TABLE consultations ADD COLUMN IF NOT EXISTS triage_category   VARCHAR(255);
+                    ALTER TABLE consultations ADD COLUMN IF NOT EXISTS triage_department VARCHAR(255);
+                    ALTER TABLE consultations ADD COLUMN IF NOT EXISTS triage_priority   VARCHAR(255);
+                    ALTER TABLE consultations ADD COLUMN IF NOT EXISTS triage_confidence REAL;
                 """)
         logger.info("Database initialised on Supabase PostgreSQL")
     else:
