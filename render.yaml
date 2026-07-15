@@ -17,3 +17,8 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
+      # Comma-separated allowlist of frontend origins (CORS) — REQUIRED in
+      # production or browsers will block the deployed frontend.
+      # e.g. https://medvoice.vercel.app
+      - key: FRONTEND_ORIGINS
+        sync: false

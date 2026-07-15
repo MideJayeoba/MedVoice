@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.database.db import init_db
 from backend.routers import admin, auth, consult
@@ -42,6 +43,10 @@ _default_origins = "http://localhost:5173,http://127.0.0.1:5173"
 ALLOWED_ORIGINS = [
     o.strip() for o in os.getenv("FRONTEND_ORIGINS", _default_origins).split(",") if o.strip()
 ]
+
+# Compress JSON responses (chat replies, history, export) — audio responses
+# are already-compressed MP3 and skipped automatically by the size threshold.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.add_middleware(
     CORSMiddleware,

@@ -13,6 +13,9 @@ from backend.services.audio import ensure_wav_bytes
 
 logger = logging.getLogger(__name__)
 
+# Pooled client — avoids a fresh TLS handshake per transcription
+_http = httpx.Client(timeout=30.0)
+
 _whisper_model = None
 _mode_resolved: str | None = None
 
@@ -184,7 +187,7 @@ def _transcribe_groq(wav_bytes: bytes, api_key: str) -> str:
     }
     headers = {"Authorization": f"Bearer {api_key}"}
 
-    r = httpx.post(url, headers=headers, files=files, timeout=30.0)
+    r = _http.post(url, headers=headers, files=files)
 
     if r.status_code == 429 or (r.status_code == 400 and "quota" in r.text.lower()):
         raise _GroqQuotaError(f"HTTP {r.status_code}: {r.text[:200]}")

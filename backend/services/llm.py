@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+# Pooled HTTP client: reuses TLS connections across requests, saving a
+# handshake (~100-300 ms) on every consultation.
+_http = httpx.Client(timeout=15.0)
+
 SYSTEM_PROMPT = ("""
 You are Priscilla, a trusted voice health and wellness assistant for people in Nigeria.
 
@@ -182,7 +186,7 @@ def _call_groq(query: str, history: list[dict] | None = None, triage: dict | Non
     }
     try:
         logger.info("Calling Groq API (%d char query)", len(query))
-        r = httpx.post(url, headers=headers, json=payload, timeout=15.0)
+        r = _http.post(url, headers=headers, json=payload)
         if r.status_code == 200:
             text = r.json()["choices"][0]["message"]["content"].strip()
             data = json.loads(text)
@@ -223,7 +227,7 @@ def _call_gemini(query: str, history: list[dict] | None = None, triage: dict | N
     }
     try:
         logger.info("Calling Gemini API (%d char query)", len(query))
-        r = httpx.post(url, json=payload, timeout=15.0)
+        r = _http.post(url, json=payload)
         if r.status_code == 200:
             text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
             data = json.loads(text)

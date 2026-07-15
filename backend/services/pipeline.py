@@ -107,13 +107,17 @@ def run_consult_text(
 ) -> tuple[str, dict | None]:
     """Text-only pipeline: LLM → triage. Returns (guidance, triage)."""
     guidance, enriched_symptoms = generate_guidance(query, history=history, triage=None, user_name=user_name)
-    
-    # Combine original query with LLM's medical enrichment for better triage
-    triage_input = f"{query}\n{enriched_symptoms}".strip()
-    triage = triage_for_conversation(triage_input, history)
-    
+    triage = _triage_with_enrichment(query, enriched_symptoms, history)
     guidance = _apply_emergency_safety(guidance, triage)
     return guidance, triage
+
+
+def _triage_with_enrichment(query: str, enriched: str, history) -> dict | None:
+    """Gate on the RAW user text (so LLM enrichment of small talk can never
+    trigger a prediction), then predict on query + enrichment for accuracy."""
+    if not (has_emergency_signal(query) or has_medical_signal(query)):
+        return None
+    return triage_for_conversation(f"{query}\n{enriched}".strip(), history, force=True)
 
 
 def run_voice_consult(
