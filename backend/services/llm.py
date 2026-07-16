@@ -207,7 +207,7 @@ def _call_gemini(query: str, history: list[dict] | None = None, triage: dict | N
                  user_name: str | None = None) -> tuple[str | None, str | None]:
     """Call Gemini 2.5 Flash Lite. Returns (text, enriched_symptoms) or (None, None)."""
     import json
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={GEMINI_API_KEY}"
     contents = []
     for item in (history or [])[-5:]:
         if item.get("transcript"):
